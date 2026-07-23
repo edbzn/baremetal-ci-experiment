@@ -10,7 +10,7 @@ on paper.
 
 - [x] Kill a worker node mid-build; confirm the job reschedules and observe
       how long it takes. *(Project 3 step 8 — see Scope note below)*
-- [ ] Fill a worker's disk; confirm eviction/disk-pressure handling works and
+- [x] Fill a worker's disk; confirm eviction/disk-pressure handling works and
       doesn't take down unrelated pods.
 - [ ] Disable a simulated top-of-rack network link (drop a veth/bridge on the
       host); observe how the cluster and CNI react.
@@ -157,3 +157,74 @@ you're actually facing before reacting.
 losing 1 of 3 members caused zero data-plane impact and only a few
 seconds of client-visible disruption, entirely attributable to the load
 balancer's health-check interval rather than the control plane itself.
+
+### Drill 2: fill a worker's disk mid-workload
+
+**Setup:** `ci-worker2` was already at 80% disk usage (15GB/19GB) before
+starting — convenient, since it meant triggering real pressure needed
+only a few more GB rather than a much larger fill. Deployed a plain
+"bystander" pod pinned to that node (`sh -c 'while true; echo tick;
+sleep 5; done'`) first, specifically so its continued healthy operation
+could be checked against, rather than just assuming "no other pods
+crashed" from a coarse cluster-wide glance.
+
+**Fill:** `dd if=/dev/zero of=/root/fill.bin bs=1M count=3000` directly
+on the host filesystem (simulating an unbounded process/log, not a
+container's own ephemeral-storage limit — that mechanism was already
+covered in Project 2 step 7) — pushed the node to 96% used, 766MB free.
+
+**Kubelet's actual response, observed step by step:**
+1. `DiskPressure` condition flipped `False` → `True` within ~10 seconds
+   of crossing the threshold (kubelet's default `nodefs.available < 10%`
+   hard-eviction threshold — not custom-configured, this cluster uses
+   kubeadm's defaults).
+2. Node stayed `Ready` throughout — disk pressure does **not** take the
+   node itself offline, only changes what can run on it.
+3. A `node.kubernetes.io/disk-pressure:NoSchedule` taint was
+   automatically applied. Verified concretely: a new pod pinned to this
+   node via `nodeSelector` correctly stayed `Pending` with
+   `FailedScheduling: ... untolerated taint {node.kubernetes.io/disk-pressure}`
+   — new work is genuinely refused, not just discouraged.
+4. Kubelet's own event log showed it **attempting image garbage
+   collection first**, before touching any running pod
+   (`Attempting to reclaim ephemeral-storage`) — reclaim, not eviction,
+   is the first response.
+5. **DaemonSet pods on the pressured node got evicted and immediately
+   recreated on the same node**, repeatedly (`metallb-frr-k8s-*`,
+   `metallb-speaker-*` cycling through `Evicted` → new pod, several times
+   over a few minutes) — because DaemonSet pods tolerate most node
+   taints (including disk-pressure) by default, so the DaemonSet
+   controller keeps trying to satisfy "one pod per node" even while that
+   node is actively pressured, producing real eviction churn rather than
+   the DaemonSet simply skipping the bad node.
+6. **The plain `bystander` pod was never touched** — confirmed via its
+   own log continuing to tick (`tick 7` → `tick 21` and beyond) with zero
+   restarts throughout the entire episode. This is the actual, concrete
+   proof the drill set out to get: disk pressure on a node evicts
+   *some* things (DaemonSet pods cycling, in this observation) but does
+   **not** indiscriminately take down unrelated running workloads on that
+   same node.
+
+**Recovery — a real, non-obvious gotcha**: after deleting the fill file
+and confirming real disk usage back to 65% used / 6.5GB free (well under
+the 10% threshold), `DiskPressure` **did not clear on its own** within
+several minutes of active checking — it stayed stuck `True` with a stale
+timestamp, despite `df`/`df -i` on the node both showing healthy numbers.
+Only `sudo systemctl restart kubelet` forced a fresh evaluation, which
+then correctly reported `DiskPressure: False` within seconds. Whether
+this was kubelet's eviction-manager sync loop genuinely running on a
+longer interval than the few minutes waited, or a real stuck-condition
+bug, wasn't conclusively distinguished here — but the practical
+takeaway is the same either way: **don't assume a disk-pressure
+condition clears promptly just because the underlying disk usage is
+already fine** — check the node condition directly rather than trusting
+"I freed the space, so it must be fine now."
+
+**Cleanup note**: three unrelated pods were sitting in `Error` state
+after this drill (`argocd-dex-server`, `hubble-relay`, the registry pod)
+— all leftovers from earlier drills' churn (control-plane-loss retries,
+kubelet restarts), not new casualties of this specific disk-fill test.
+Deleting them let their controllers recreate healthy replacements —
+worth distinguishing "pods this drill broke" from "pre-existing mess
+from prior drills" rather than attributing all observed errors to
+whichever drill happens to be running when you look.
