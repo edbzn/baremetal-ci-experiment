@@ -21,7 +21,7 @@ on paper.
 - [x] Reinstall a node from nothing (reprovision, rejoin) and time it.
       *(Project 3 step 8 — see Scope note below)*
 - [x] Rotate runner/service-account credentials without downtime.
-- [ ] Revoke access for a "compromised" CI job mid-run (network policy +
+- [x] Revoke access for a "compromised" CI job mid-run (network policy +
       credential revocation) and confirm blast radius is actually contained.
 
 ## Scope note
@@ -344,3 +344,82 @@ refresh without any of this manual delete/recreate choreography — this
 drill's whole failure mode is specific to the older pattern and is a
 concrete argument for why the newer default is better, not just a
 theoretical preference.
+
+### Drill 5: revoke access for a "compromised" CI job mid-run
+
+**Setup:** a namespace with a plausible normal CI-job shape — a
+`ServiceAccount` (`suspect-job-sa`) granted `get/list` on Secrets in its
+own namespace (standing in for, e.g., legitimate registry-credential
+access), a `sensitive-secret` it can read, and an `internal-target`
+Service it can reach over the network. A pod (`suspect-job`, using its
+own auto-mounted default token, not a custom-mounted one — simpler and
+avoided the volume-mount mistake made on the first attempt) continuously
+exercises both: polling the internal Service and reading the Secret via
+a direct API call, every 4 seconds. Confirmed both succeeding normally
+(`network=[sensitive-internal-response]`,
+`api_http_code=200`) for 12 consecutive attempts before containment —
+establishing a genuine baseline of "this looks like a normal, functioning
+CI job" before treating it as compromised.
+
+**Containment applied live, mid-run, deliberately scoped to the specific
+suspect pod rather than the whole namespace** (a more realistic incident
+response than nuking everything in the namespace, which would also take
+down legitimate workloads sharing it):
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+spec:
+  podSelector:
+    matchLabels:
+      run: suspect-job
+  policyTypes: ["Egress", "Ingress"]
+```
+
+plus `kubectl delete rolebinding suspect-job-binding` (revoking the RBAC
+grant, not deleting the ServiceAccount itself — keeps the object around
+for forensics rather than erasing evidence of what it was permitted to
+do).
+
+**Result, verified precisely rather than assumed:**
+- Both measures took effect at the same observed poll cycle (attempt 13)
+  — network went fully dark (`network=[]`) and the API call failed at
+  the transport level (`api_http_code=000`, connection-level failure,
+  not even reaching an HTTP response) — because the blanket
+  `Egress`/`Ingress` deny with no exceptions blocks *all* outbound
+  traffic from this pod, including to the API server itself, not just to
+  the internal target.
+- **This made it impossible to tell, from inside the pod's own log,
+  whether the RBAC revocation alone would have been sufficient** — the
+  network block already prevented any API traffic at all. Checked
+  independently, from outside the contained pod's network path:
+  `kubectl auth can-i get secrets --as=system:serviceaccount:...` →
+  `no`. Confirms the RBAC revocation is genuinely effective on its own,
+  not just incidentally masked by the simultaneous network block —
+  worth verifying both measures independently rather than assuming a
+  combined test proves each one individually.
+- **Blast radius genuinely confirmed surgical, not just assumed from the
+  NetworkPolicy's `podSelector`**: a *different*, freshly-created pod in
+  the *same namespace* (not the contained `suspect-job`) successfully
+  reached `internal-target-svc` immediately after containment
+  (`sensitive-internal-response`) — proving the NetworkPolicy's
+  pod-specific selector genuinely scoped the block to just the one
+  suspect pod, not the whole namespace, exactly as intended rather than
+  as a side effect that happened to look right.
+- On namespace cleanup (tearing down the ServiceAccount along with
+  everything else), the API check transitioned from `000`
+  (network-blocked) to `401` (token itself invalidated, once the
+  ServiceAccount object was actually deleted) — a clean confirmation of
+  the layered nature of these controls: network policy, RBAC, and
+  ServiceAccount existence are three independent gates, each capable of
+  stopping access on its own.
+
+**Overall**: both containment mechanisms — NetworkPolicy scoped to the
+specific suspect pod, and RBAC revocation via deleting the RoleBinding —
+worked exactly as intended, independently verifiable, and genuinely
+surgical (collateral-free for other workloads in the same namespace).
+This is the concrete version of the roadmap's "revoke access for a
+compromised job" principle: not a single kill switch, but layered,
+independently-effective controls that can be applied without first
+killing the pod itself (useful if forensics on the running process
+matter before termination).

@@ -44,6 +44,30 @@ docs/
 - [x] Project 2: conventional Kubernetes CI (kind/k3d)
 - [x] Project 3: rebuild on simulated bare metal
 - [x] Project 4: Kata Containers microVMs
-- [ ] Project 5: disaster exercises
+- [x] Project 5: disaster exercises
 
 See `projects/*/README.md` for the goal, steps, and checkpoints of each phase.
+
+## Status: all 5 projects complete
+
+The roadmap's core arc — trusted-by-default containers (Project 1) →
+conventional Kubernetes CI (Project 2) → real bare-metal-style
+infrastructure (Project 3) → microVM isolation for high-risk jobs
+(Project 4) → operational credibility through actual failure drills
+(Project 5) — is done, with concrete, measured findings at every step
+rather than assumptions. Notable threads worth following up on:
+
+- **containerd 2.x has real, non-obvious gaps** relative to older
+  guidance (the CRI "transfer service" pull path ignoring `certs.d`
+  insecure-registry overrides — see Project 3) — worth rechecking any
+  containerd config against the actual running version, not memorized
+  patterns.
+- **Kata's cost is now measured, not assumed** (Project 4): ~3.5x
+  cold-start, ~300MB/250m fixed overhead per pod, ~33x disk write
+  slowdown — informs exactly which job classes warrant it.
+- **HA control-plane retrofitting is genuinely harder than bootstrapping
+  it correctly the first time** (Project 5) — worth deciding topology
+  upfront on any future real deployment.
+- **NetworkPolicy engines can have live-pod-tracking races** (kindnet in
+  Project 2) that produce false negatives in naive tests — always verify
+  against a genuinely long-lived pod, not a one-shot test pod.

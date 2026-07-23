@@ -1,0 +1,92 @@
+# Setup for the "compromised CI job" containment drill: a job-like pod
+# with a real ServiceAccount (can read Secrets in its own namespace --
+# plausible for a CI job needing e.g. registry credentials) and network
+# access to a target service, standing in for what a legitimate CI job
+# would have.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: compromised-job-demo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: suspect-job-sa
+  namespace: compromised-job-demo
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: suspect-job-sa-token
+  namespace: compromised-job-demo
+  annotations:
+    kubernetes.io/service-account.name: suspect-job-sa
+type: kubernetes.io/service-account-token
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sensitive-secret
+  namespace: compromised-job-demo
+type: Opaque
+stringData:
+  value: "this-would-be-a-real-credential-in-production"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secret-reader
+  namespace: compromised-job-demo
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: suspect-job-binding
+  namespace: compromised-job-demo
+subjects:
+  - kind: ServiceAccount
+    name: suspect-job-sa
+    namespace: compromised-job-demo
+roleRef:
+  kind: Role
+  name: secret-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+# A target service the "compromised" job should NOT be able to reach
+# after containment -- standing in for an internal service the job has
+# no business talking to.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: internal-target
+  namespace: compromised-job-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: internal-target
+  template:
+    metadata:
+      labels:
+        app: internal-target
+    spec:
+      containers:
+        - name: echo
+          image: docker.io/library/busybox:1.36
+          command: ["sh", "-c", "while true; do echo -e 'HTTP/1.1 200 OK\r\n\r\nsensitive-internal-response' | nc -l -p 8080; done"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: internal-target-svc
+  namespace: compromised-job-demo
+spec:
+  selector:
+    app: internal-target
+  ports:
+    - port: 80
+      targetPort: 8080
