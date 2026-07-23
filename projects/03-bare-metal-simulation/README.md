@@ -187,3 +187,69 @@ Kubernetes-aware, and nodes can die" property without needing hardware yet.
   peering with the cluster nodes) — noted as a gap, matching the roadmap's
   own framing that L2 is the simple lab setup and BGP is worth
   understanding but not required for this first pass.
+
+### Step 5: internal DNS + registry
+
+- **Internal DNS**: used Kubernetes's own CoreDNS/Service-DNS mechanism
+  rather than standing up a separate DNS server — a registry Deployment +
+  Service resolves cluster-internally as
+  `registry.registry.svc.cluster.local`, confirmed via a test pod's
+  `wget`. This is the same mechanism already verified in Project 2; no new
+  DNS infrastructure needed for "internal DNS" at this scale.
+- **Registry**: deployed `registry:2` as an actual cluster workload
+  (`registry.yaml`) rather than reusing Project 1/2's host-side
+  `registry:2` Docker container — the host's registry is bound to
+  `127.0.0.1:5000` (loopback only) and lives on Docker's own bridge
+  networks, unreachable from the separate libvirt VM network the cluster
+  nodes are on. A cluster-internal registry is also more architecturally
+  correct for this project's "reproduce this as if it were real bare
+  metal" framing.
+- Exposed via a `type: LoadBalancer` Service — MetalLB (step 4) assigned
+  it `192.168.122.200`, immediately reachable both from the host (`curl`)
+  and from inside the cluster (Service DNS name).
+
+**The actual debugging story — containerd 2.x's CRI "transfer service"
+silently ignores insecure-HTTP `certs.d` overrides:**
+
+- Configured `/etc/containerd/certs.d/192.168.122.200:5000/hosts.toml`
+  (`server = "http://..."` + a `[host."http://..."]` block) on all 3
+  nodes, matching the documented pattern and confirmed valid TOML.
+- `ctr -n k8s.io images push/pull --plain-http ...` against this registry
+  worked immediately from every node — proving network connectivity and
+  the registry itself were never the problem.
+- But `crictl pull` / an actual pod's `PullImage` **kept forcing HTTPS**
+  and failing (`server gave HTTP response to HTTPS client`), completely
+  ignoring the `hosts.toml` — even after confirming `config_path` was
+  correctly set under the (containerd-2.x-correct)
+  `[plugins.'io.containerd.cri.v1.images'.registry]` section, restarting
+  containerd, trying the alternate `host_port` directory-naming
+  convention, and validating the TOML parsed cleanly.
+- Root cause, found by turning on containerd debug logging
+  (`[debug] level = 'debug'` in `config.toml`, **not** an env var) and
+  grepping the journal: the pull log line read `"PullImage ... with
+  snapshotter overlayfs **using transfer service**"` — containerd 2.x
+  routes CRI image pulls through a newer, pluggable "transfer service"
+  path by default, which does **not** reliably honor `certs.d` host
+  overrides for insecure HTTP (a known containerd limitation, not a local
+  misconfiguration — see containerd/containerd#12550).
+- **Fix**: `[plugins.'io.containerd.cri.v1.images'] use_local_image_pull =
+  true` — reverts CRI/kubelet image pulls to the classic client-based
+  resolver (the same one `ctr images pull` already used successfully),
+  which fully honors `certs.d`/`hosts.toml`. Applied on all 3 nodes,
+  restarted containerd, and confirmed: a real pod (`kubectl run
+  ...--image=192.168.122.200:5000/...`) pulled and ran successfully on
+  all 3 nodes afterward.
+- Packaged as `scripts/configure-insecure-registry.sh <registry-host:port>
+  <node-ip>...` for reuse — handles both the `hosts.toml` generation and
+  the `use_local_image_pull` fix (including de-duplicating the key if a
+  `= false` default already exists elsewhere in `config.toml`, which
+  caused a containerd startup failure the first time this was applied —
+  TOML doesn't allow duplicate keys and containerd's parser fails closed,
+  not open, on that error).
+- **Why this is worth remembering**: this is a containerd-version-specific
+  behavior (2.x's transfer-service default), not something documented
+  prominently in most kubeadm/insecure-registry tutorials, which mostly
+  predate containerd 2.x. Anyone following older guidance on a fresh
+  Kubernetes 1.31+/containerd 2.x install would hit this exact silent
+  failure. Directly relevant going into Project 4 (Kata) and any future
+  bare-metal registry work on newer containerd versions.
