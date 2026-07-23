@@ -14,16 +14,12 @@ jobs:
           echo
           echo "== CapEff =="
           cat /proc/self/status | grep CapEff
-
-      - name: Run a step inside its own separate container (sibling pod via Kubernetes API)
-        run: |
-          echo "hostname inside this step's own container:"
-          hostname
-          cat /etc/os-release | head -2
-        container:
-          image: alpine:3.20
-
-      - name: Confirm the step above ran in a genuinely different pod
-        run: |
+          echo
           echo "hostname of the main runner container:"
           hostname
+
+      - name: Run a container action (this triggers a genuinely separate sibling pod under kubernetes mode)
+        uses: docker://alpine:3.20
+        with:
+          entrypoint: sh
+          args: -c "echo hostname inside this container action:; hostname; cat /etc/os-release | head -2"
