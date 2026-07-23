@@ -1,0 +1,32 @@
+# Trimmed-down kube-prometheus-stack values for a small local kind cluster —
+# disables the heavier default components (Alertmanager, node-exporter's
+# default high-cardinality rules) we don't need for this learning exercise,
+# and keeps retention/storage small since this isn't meant to be durable.
+alertmanager:
+  enabled: false
+
+grafana:
+  adminPassword: admin
+  service:
+    type: NodePort
+    nodePort: 32000
+
+prometheus:
+  prometheusSpec:
+    retention: 6h
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+    # Allow Prometheus to discover ServiceMonitors from any namespace,
+    # including our future ci-metrics setup.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi

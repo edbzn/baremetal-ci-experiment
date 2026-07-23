@@ -1,0 +1,94 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ci-jobs-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  ci-jobs.json: |
+    {
+      "title": "CI Jobs (ci namespace)",
+      "uid": "ci-jobs",
+      "timezone": "utc",
+      "schemaVersion": 39,
+      "refresh": "10s",
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Job outcomes (succeeded vs failed)",
+          "type": "stat",
+          "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+          "targets": [
+            { "expr": "sum(kube_job_status_succeeded{namespace=\"ci\"})", "legendFormat": "succeeded" },
+            { "expr": "sum(kube_job_status_failed{namespace=\"ci\"})", "legendFormat": "failed" }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Failure rate (%, last 1h)",
+          "type": "stat",
+          "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
+          "targets": [
+            {
+              "expr": "100 * sum(kube_job_status_failed{namespace=\"ci\"}) / clamp_min(sum(kube_job_status_failed{namespace=\"ci\"}) + sum(kube_job_status_succeeded{namespace=\"ci\"}), 1)",
+              "legendFormat": "failure %"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Currently active CI jobs",
+          "type": "stat",
+          "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 },
+          "targets": [
+            { "expr": "sum(kube_job_status_active{namespace=\"ci\"})", "legendFormat": "active" }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Job queue time (creation -> start), seconds",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "targets": [
+            {
+              "expr": "kube_job_status_start_time{namespace=\"ci\"} - on(job_name) kube_job_created{namespace=\"ci\"}",
+              "legendFormat": "{{job_name}}"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Pod start duration p50/p95 (cluster-wide, kubelet)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum(rate(kubelet_pod_start_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50" },
+            { "expr": "histogram_quantile(0.95, sum(rate(kubelet_pod_start_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95" }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "Pods pending scheduling (ci namespace)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+          "targets": [
+            {
+              "expr": "sum(kube_pod_status_phase{namespace=\"ci\", phase=\"Pending\"})",
+              "legendFormat": "pending"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "title": "Node CPU/memory pressure (per node)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+          "targets": [
+            { "expr": "sum(kube_node_status_condition{condition=\"MemoryPressure\", status=\"true\"}) by (node)", "legendFormat": "{{node}} mem pressure" },
+            { "expr": "sum(kube_node_status_condition{condition=\"DiskPressure\", status=\"true\"}) by (node)", "legendFormat": "{{node}} disk pressure" }
+          ]
+        }
+      ]
+    }

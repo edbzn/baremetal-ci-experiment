@@ -299,3 +299,70 @@ NetworkPolicy test that uses one-shot pods, and worth re-testing directly
 against Kata microVM pods in Project 4, since the enforcement mechanism
 (nftables/nfqueue on the host network namespace) interacts with microVM
 networking differently than with plain container networking.
+
+### Step 6: Prometheus + Grafana with CI metrics
+
+Installed `kube-prometheus-stack` via Helm into its own `monitoring`
+namespace (`monitoring-values.yaml` trims Alertmanager and sets small
+resource requests/retention for a local kind cluster — this is a learning
+box, not something needing durable long-term metrics storage).
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm install kube-prom prometheus-community/kube-prometheus-stack \
+  -n monitoring -f monitoring-values.yaml --wait --timeout 5m
+```
+
+**What's actually useful out of the box, without writing custom
+exporters** — `kube-state-metrics` (Kubernetes object state) + kubelet's
+own metrics (scraped automatically) already cover most of the roadmap's
+CI-metrics list:
+
+| Roadmap metric | Source | PromQL used |
+|---|---|---|
+| Failure rate by runner class | `kube_job_status_failed` / `kube_job_status_succeeded` | `sum(kube_job_status_failed{namespace="ci"})` |
+| Job queue time | `kube_job_status_start_time - kube_job_created` | `kube_job_status_start_time{namespace="ci"} - on(job_name) kube_job_created{namespace="ci"}` |
+| Job startup latency | `kubelet_pod_start_duration_seconds_bucket` (kubelet-reported, includes image pull + sandbox creation) | `histogram_quantile(0.95, sum(rate(kubelet_pod_start_duration_seconds_bucket[5m])) by (le))` |
+| Pod scheduling delay | `kube_pod_status_scheduled_time` vs. pod creation | (available; not yet wired into the dashboard — see below) |
+| Node disk/memory pressure | `kube_node_status_condition{condition="MemoryPressure"/"DiskPressure"}` | `sum(kube_node_status_condition{...}) by (node)` |
+
+Verified with real data, not just applied-and-assumed: queued 6 jobs via
+the runner controller (5 succeeding, 1 deliberately `exit 1`), then queried
+Prometheus directly —
+`sum(kube_job_status_succeeded{namespace="ci"})` → `5`,
+`sum(kube_job_status_failed{namespace="ci"})` → `1`, matching exactly.
+Queue time came back `0` for all — expected, since this cluster has far
+more spare capacity than these jobs request, so there's no real scheduling
+backlog to observe (the metric itself is real and correct; there's just
+nothing interesting to see until the cluster is actually under
+contention — worth revisiting during the step 7 break-it tests or
+Project 3's heavier load).
+
+**Dashboard**: `manifests/10-ci-dashboard-configmap.yaml` — a ConfigMap
+labeled `grafana_dashboard: "1"`, auto-discovered by the
+`grafana-sc-dashboard` sidecar (confirmed via its logs: `Writing
+/tmp/dashboards/ci-jobs.json` → `Dashboards config reloaded`). Panels: job
+outcomes, failure rate %, active job count, queue time, pod start duration
+p50/p95, pending-pod count, node pressure conditions. Confirmed reachable
+end-to-end: `GET /api/search?query=CI` finds it, and querying through
+Grafana's own datasource proxy
+(`/api/datasources/proxy/uid/prometheus/api/v1/query`) returns the same
+real numbers seen directly against Prometheus.
+
+**Access:**
+```bash
+kubectl port-forward -n monitoring svc/kube-prom-grafana 3000:80
+# http://localhost:3000, admin / admin (set in monitoring-values.yaml —
+# change this if this cluster is ever exposed beyond localhost)
+```
+
+**Gaps / things not done:** no ServiceMonitor was written for the runner
+controller itself (it's a bash script, not something that exposes
+Prometheus metrics) — the CI metrics here come entirely from Kubernetes
+object state (kube-state-metrics) and kubelet, not from instrumenting the
+runner. A real CI system (GitLab Runner, Actions Runner Controller, Tekton)
+typically exposes its own `/metrics` endpoint with queue depth and
+per-pipeline timing that this generic approach can't see. Also didn't wire
+scheduling-delay specifically into the dashboard (the raw data
+`kube_pod_status_scheduled_time` is there; just didn't build the panel) —
+noted here rather than silently skipped.
