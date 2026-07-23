@@ -1,0 +1,14 @@
+name: Kubernetes containerMode build capability test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  try-build-with-kubernetes-mode:
+    runs-on: arc-runner-set
+    container:
+      image: docker:29
+    steps:
+      - name: Try to build an image (expect this to fail - no docker daemon reachable)
+        run: |
+          docker version 2>&1 || echo "FAILED as expected: no docker daemon reachable in kubernetes mode without an explicit BuildKit/dind service"
