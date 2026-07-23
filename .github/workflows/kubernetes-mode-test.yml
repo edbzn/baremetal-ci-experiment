@@ -1,0 +1,29 @@
+name: Kubernetes containerMode test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-with-kubernetes-mode:
+    runs-on: arc-runner-set
+    steps:
+      - name: Confirm no docker.sock, no privileged sidecar
+        run: |
+          echo "== is there a docker socket in this mode? (should be none -- no dind sidecar) =="
+          ls -la /var/run/docker.sock 2>&1 || echo "not present, as expected"
+          echo
+          echo "== CapEff =="
+          cat /proc/self/status | grep CapEff
+
+      - name: Run a step inside its own separate container (sibling pod via Kubernetes API)
+        run: |
+          echo "hostname inside this step's own container:"
+          hostname
+          cat /etc/os-release | head -2
+        container:
+          image: alpine:3.20
+
+      - name: Confirm the step above ran in a genuinely different pod
+        run: |
+          echo "hostname of the main runner container:"
+          hostname

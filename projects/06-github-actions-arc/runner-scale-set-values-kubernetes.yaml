@@ -1,0 +1,23 @@
+githubConfigUrl: "https://github.com/edbzn/baremetal-ci-experiment"
+githubConfigSecret: arc-github-app-secret
+
+minRunners: 0
+maxRunners: 3
+
+containerMode:
+  type: "kubernetes"
+  kubernetesModeWorkVolumeClaim:
+    accessModes: ["ReadWriteOnce"]
+    storageClassName: "local-path"
+    resources:
+      requests:
+        storage: 1Gi
+
+template:
+  spec:
+    nodeSelector:
+      node-role: isolated-ci
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["/home/runner/run.sh"]
