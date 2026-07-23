@@ -253,3 +253,78 @@ silently ignores insecure-HTTP `certs.d` overrides:**
   Kubernetes 1.31+/containerd 2.x install would hit this exact silent
   failure. Directly relevant going into Project 4 (Kata) and any future
   bare-metal registry work on newer containerd versions.
+
+### Step 6: etcd snapshot + full restore exercise
+
+Ran this as an actual destructive test on the live single-control-plane
+cluster, not a dry run — per the roadmap's own framing, "a backup that has
+never been restored is not sufficient."
+
+**Setup:** installed `etcd-client` (`etcdctl` v3.4.30, matching this
+etcd/Kubernetes version's expected API) on `ci-cp1` — not present by
+default after kubeadm bootstrap.
+
+**Sequence, with a marker ConfigMap at each stage to prove correctness
+rather than just "it came back up":**
+
+1. Created `pre-backup-marker` ConfigMap.
+2. `etcdctl snapshot save` using the `healthcheck-client` cert (kubeadm
+   already generates this cert specifically for etcd maintenance
+   operations like snapshotting) → 7.5MB snapshot, 1917 keys.
+3. **Copied the snapshot off-node** to this host's
+   `etcd-backups/` — a snapshot sitting on the same disk as the etcd data
+   it backs up doesn't survive the failure modes that actually matter
+   (disk failure, VM destruction). Hit a real permission gotcha here: the
+   snapshot file is owned by `root` (created via `sudo`), so a plain `scp`
+   as the regular user fails until `chown`'d first — easy to miss and
+   silently end up with backups that were never actually copied anywhere.
+4. Created `post-backup-marker` ConfigMap — deliberately *after* the
+   snapshot, so its presence/absence after restore proves whether the
+   restore actually rolled back to the snapshot's point in time or did
+   something else.
+5. **Destroyed etcd's live data directory for real**: moved
+   `/etc/kubernetes/manifests/etcd.yaml` out of the kubelet-watched
+   manifests directory (stopping the static pod cleanly) and `rm -rf
+   /var/lib/etcd/member`. Confirmed via `kubectl get nodes` from the host
+   genuinely hanging/refusing — the API server was unreachable, not just
+   slow, since it depends on etcd for every request.
+6. **Restored**: `etcdctl snapshot restore` into a fresh directory
+   (`/var/lib/etcd-restored`) with the correct `--name`/
+   `--initial-cluster`/`--initial-advertise-peer-urls` matching this
+   single-node cluster's identity, then swapped it into place
+   (`rm -rf /var/lib/etcd && mv /var/lib/etcd-restored /var/lib/etcd`,
+   `chown root:root`) and moved the static pod manifest back.
+7. kubelet picked up the restored `etcd.yaml` automatically (that's the
+   whole point of static pods — no `kubectl apply` needed, or possible,
+   since the API server itself was down) and started etcd against the
+   restored data. `kube-apiserver`'s own static pod then restarted itself
+   once etcd became reachable again.
+
+**Verification — the actual proof, not just "cluster looks fine":**
+- `pre-backup-marker` (created *before* the snapshot): **present** after
+  restore, exact original data intact.
+- `post-backup-marker` (created *after* the snapshot, before destruction):
+  **genuinely gone** — `404 NotFound`. This is the specific, falsifiable
+  check that confirms the restore rolled the cluster back to precisely the
+  snapshot's point in time, rather than (for instance) partially
+  recovering, silently keeping some later writes, or just restarting
+  successfully without actually being the restored data.
+- Confirmed the rest of the cluster survived the exercise intact: all pods
+  still `Running`, and the registry from step 5 still reachable with its
+  previously pushed image (`alpine-test`) still listed.
+
+**Packaged for reuse**: `scripts/etcd-snapshot.sh <control-plane-ip>` —
+takes the snapshot, fixes ownership, copies it off-node, cleans up the
+node-local temp file. (The restore procedure was kept manual/documented
+here rather than scripted, since a real restore should never be a blind
+one-command operation — matching the node identity flags to the actual
+cluster and confirming the failure mode first matters too much to
+automate away.)
+
+**Scope limitation, stated plainly**: this is a single-control-plane
+cluster, so this exercise validates the snapshot/restore *mechanism*
+correctly, but does not exercise etcd quorum loss/recovery (which needs
+≥3 control-plane nodes) — that's a real gap versus the roadmap's stated
+architecture, not something to gloss over. A genuine multi-member
+etcd-quorum-loss drill belongs in Project 5's disaster exercises if this
+cluster is ever expanded to 3 control-plane nodes.

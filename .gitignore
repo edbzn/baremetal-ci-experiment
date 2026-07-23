@@ -3,3 +3,4 @@ projects/02-kubernetes-ci/queue/*.task
 projects/02-kubernetes-ci/queue/.processed/
 projects/03-bare-metal-simulation/.kube/
 projects/03-bare-metal-simulation/vm-images/
+projects/03-bare-metal-simulation/etcd-backups/
