@@ -1,0 +1,33 @@
+# Exercises: a CI job that tries to consume more memory than its limit.
+# Expect the container to be OOMKilled by the cgroup (exit code 137), and
+# the Job to report Failed once backoffLimit is exhausted — not the node's
+# real memory to be affected.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: oom-job
+  namespace: ci
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: memory-hog
+          image: docker.io/library/busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "growing memory past the 64Mi limit..."
+              i=0
+              while [ $i -lt 200 ]; do
+                dd if=/dev/zero bs=1M count=5 2>/dev/null >> /dev/shm/hog
+                i=$((i+1))
+              done
+              echo "loop finished unexpectedly"
+          resources:
+            requests:
+              memory: "32Mi"
+            limits:
+              memory: "64Mi"

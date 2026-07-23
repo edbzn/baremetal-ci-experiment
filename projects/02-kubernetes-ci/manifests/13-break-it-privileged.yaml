@@ -1,0 +1,18 @@
+# Exercises: a CI job that requests privileged:true, which should be
+# rejected outright at admission time (never reaches a node) once the
+# namespace enforces the "restricted" Pod Security Standard.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: privileged-job
+  namespace: ci
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: privileged-attempt
+          image: ci-registry:5000/sample-app:v1
+          securityContext:
+            privileged: true

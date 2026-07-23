@@ -366,3 +366,61 @@ per-pipeline timing that this generic approach can't see. Also didn't wire
 scheduling-delay specifically into the dashboard (the raw data
 `kube_pod_status_scheduled_time` is there; just didn't build the panel) —
 noted here rather than silently skipped.
+
+### Step 7: break things on purpose (Kubernetes context)
+
+Three specific tests from the roadmap, all in `manifests/11-*` through
+`manifests/13-*.yaml`.
+
+**Ephemeral storage fill:**
+| Setup | Result |
+|---|---|
+| `resources.limits.ephemeral-storage: 100Mi`, write 500MB | `Warning Evicted — Pod ephemeral local storage usage exceeds the total limit of containers 100Mi`. Kubelet kills the container proactively; pod ends `Error`. Clean, bounded failure. |
+| No ephemeral-storage limit at all, write 500MB | Succeeds silently, no eviction, no warning. Host disk usage confirmed via `df -h /` before/after — same underlying mechanism as Project 1 (overlay writable layer = real host disk), just now demonstrated with Kubernetes's own enforcement knob absent. |
+
+Same conclusion as Project 1, now confirmed at the Kubernetes layer:
+**ephemeral-storage limits are opt-in, not a default protection** — a CI
+Job spec without them can genuinely fill a node's real disk.
+
+**OOM:**
+- `resources.limits.memory: 64Mi`, container grows memory past that via a
+  `/dev/shm` write loop.
+- Pod status: `OOMKilled`. Container `State: Terminated, Reason: OOMKilled,
+  Exit Code: 137` — instant, cgroup-level kill, exactly like Docker's
+  `--memory` in Project 1, now via `resources.limits.memory`.
+- Job ends `Failed` (with `backoffLimit: 0`, no retry). Host `free -h`
+  confirmed unaffected (~27Gi still available) — damage contained to the
+  one container's cgroup.
+
+**Privileged pod vs. admission policy — the most interesting result of
+this step:**
+- Re-enabled `pod-security.kubernetes.io/enforce=restricted` on the `ci`
+  namespace (removed earlier after the step-2 exercise), then applied a
+  Job whose pod template sets `securityContext.privileged: true`.
+- **The Job itself was created successfully** — `kubectl apply` only
+  printed a `Warning`, not a rejection. This is different from the bare-Pod
+  case in step 2, where `kubectl run --overrides=...privileged` was
+  rejected outright with an error. The difference: Pod Security admission
+  validates **Pods**, and webhook admission review of a **Job** only
+  produces an advisory warning about what its pod template *would*
+  violate — it does not block Job creation.
+- What actually happens: the Job controller then repeatedly tries to
+  create the underlying Pod, and *each* attempt is rejected by admission
+  (`Warning FailedCreate — pods "privileged-job-<x>" is forbidden: violates
+  PodSecurity "restricted:latest": ...`). Observed 5 distinct rejected pod
+  names in under 20 seconds, and it does not stop — confirmed the Job
+  status stayed `Running 0/1` indefinitely, never transitioning to
+  `Failed`, because **`backoffLimit` counts failed pod runs, not
+  pod-creation admission rejections** — no pod ever actually starts, so
+  there's nothing for `backoffLimit` to count against.
+- **Practical implication:** a Job blocked entirely by admission policy
+  looks like `STATUS Running, COMPLETIONS 0/1` in `kubectl get jobs` — easy
+  to misread as "still working" rather than "permanently and completely
+  blocked, retrying forever." The real signal is in `kubectl describe job`
+  (`FailedCreate` events) or Prometheus's `kube_job_status_active` staying
+  nonzero with `kube_job_status_succeeded`/`failed` never incrementing.
+  Worth adding an alert on "Job active > N minutes with zero pod-starts"
+  once this moves toward anything more production-like — a naive
+  `job failure rate` dashboard panel (as built in step 6) would show
+  **nothing wrong at all** for this exact failure mode, since it only
+  counts `kube_job_status_failed`, which never gets set here.

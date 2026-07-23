@@ -1,0 +1,29 @@
+# Exercises: what happens when a CI job's container fills its ephemeral
+# storage past the requested/limited amount. Expect kubelet to evict the
+# pod for exceeding ephemeral-storage, not the node's real disk to fill.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: disk-fill-job
+  namespace: ci
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: filler
+          image: ci-registry:5000/sample-app:v1
+          command:
+            - sh
+            - -c
+            - |
+              echo "writing past the ephemeral-storage limit..."
+              dd if=/dev/zero of=/fill bs=1M count=500 2>&1 || true
+              echo "dd exit=$?, sleeping so kubelet has time to notice/evict"
+              sleep 60
+          resources:
+            requests:
+              ephemeral-storage: "50Mi"
+            limits:
+              ephemeral-storage: "100Mi"
