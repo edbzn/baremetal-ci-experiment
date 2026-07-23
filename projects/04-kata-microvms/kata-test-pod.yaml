@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kata-test
+spec:
+  runtimeClassName: kata-qemu
+  containers:
+    - name: test
+      image: 192.168.122.200:5000/alpine-test:v1
+      command: ["sh", "-c", "uname -a; cat /proc/cpuinfo | grep 'model name' | head -1; sleep 3600"]
