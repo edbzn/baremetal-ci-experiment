@@ -56,4 +56,114 @@ for ARC and avoids a broadly-scoped personal token.
 
 ## Notes / findings
 
-(fill in as you go)
+### Feasibility confirmed: yes, straightforward
+
+GitHub's Actions Runner Controller (`gha-runner-scale-set-controller` +
+`gha-runner-scale-set`, the current Helm-based architecture — not the
+older `summerwind/actions-runner-controller` community project) wires up
+cleanly to a private, no-public-ingress cluster. No webhook/inbound
+network requirement at all: the listener pod maintains a long-poll
+connection outbound to `api.github.com`/`broker.actions.githubusercontent.com`,
+which is exactly what a NAT'd bare-metal cluster like ours needs.
+
+### Setup
+
+- **Auth**: GitHub App (not a PAT) — two repository permissions only,
+  `Administration: Read and write` and `Metadata: Read-only`, no webhook
+  subscriptions. Three values extracted (App ID, Installation ID, private
+  key `.pem`) and stored as a Kubernetes Secret
+  (`github_app_id`/`github_app_installation_id`/`github_app_private_key`
+  — exact literal key names the chart expects).
+- **Install**: `cert-manager` (a dependency of the controller, for its
+  own internal webhook TLS — unrelated to GitHub webhooks) →
+  `gha-runner-scale-set-controller` → a `gha-runner-scale-set` release
+  configured with `githubConfigUrl` pointed at this repo and
+  `nodeSelector: node-role: isolated-ci` (reusing the roadmap's node-pool
+  convention from Project 2/4 — untrusted-adjacent CI workload, kept off
+  the control-plane and off any node not designated for it).
+- **`minRunners: 0`**: no idle runner pods sitting around — genuinely
+  scale-to-zero, matching "one ephemeral pod per CI job" rather than
+  "N always-on runners."
+
+### End-to-end proof — a real push, a real cluster-executed job
+
+Pushed a commit with a workflow (`runs-on: arc-runner-set`). Confirmed,
+not assumed:
+- GitHub's run went `queued` → `in_progress` the moment the push landed.
+- Simultaneously, a real ephemeral pod
+  (`arc-runner-set-rtbcc-runner-<id>`) appeared on `ci-worker2`,
+  `ContainerCreating` (pulling `ghcr.io/actions/actions-runner:latest`)
+  → `Running` → `Completed`, matching the GitHub run's own
+  `queued`→`in_progress`→`completed success` transitions in lockstep.
+- **The clincher, straight from GitHub's own captured log output**:
+  `kernel: Linux arc-runner-set-rtbcc-runner-nh5n4 6.8.0-134-generic
+  #134-Ubuntu ... Ubuntu 24.04.4 LTS` — the exact kernel/OS of our own
+  cluster nodes from every other project in this roadmap, visible in
+  GitHub's Actions UI as the job's own output. This is not a
+  hosted GitHub runner; it's genuinely our bare-metal-simulated cluster.
+- After completion: pod gone (`No resources found`), GitHub's own
+  registered-runners list also empty (`total_count: 0`) — fully
+  ephemeral, no lingering registration either side.
+
+### Break-it: kill the runner pod mid-job
+
+Added a ~5-minute sleep loop step, pushed, waited for the runner pod to
+reach `Running`, then `kubectl delete pod ... --force --grace-period=0`
+on it directly — simulating a hard node/pod failure mid-CI-run (the same
+class of failure as Project 5's node-loss drills, but specifically
+targeting a CI job's own runner rather than an infrastructure
+component).
+
+**Result:**
+- The GitHub Actions run did **not** immediately fail — it stayed
+  `in_progress`.
+- ARC's `EphemeralRunnerSet` controller detected the runner was gone and
+  **automatically created a brand-new replacement pod** (confirmed via
+  `kubectl get ephemeralrunners` showing a fresh `RUNNERID` against the
+  same `WORKFLOWRUNID`/`JOBID`) — the controller-level recovery worked
+  exactly as ARC is designed to.
+- **The replacement runner re-ran the entire job from the beginning**,
+  not from wherever the killed pod had gotten to — GitHub Actions has no
+  mid-step checkpoint/resume mechanism; a lost runner means the whole job
+  reattempts on a fresh one. The sleep loop genuinely restarted from
+  `tick 1`, confirmed by the new pod's own age tracking against the
+  ~5-minute total duration needed.
+- **Real operational cost, not just "it recovers"**: killing a runner
+  mid-job doesn't lose the CI run outright, but it does cost a full
+  job-duration's worth of re-execution — for a quick job this is
+  negligible, but for a long build/test suite this is a genuine, sizable
+  cost of any infrastructure instability during a run. Directly connects
+  to every prior disaster-exercise finding in Project 5: a node loss or
+  network blip that would otherwise just reschedule a stateless service
+  pod instead throws away real, possibly expensive-to-redo CI work when
+  it hits a runner specifically.
+- Worth building forward: for genuinely long-running CI jobs, this cost
+  argues for either smaller/more granular jobs (so a lost runner loses
+  less work) or accepting the redo cost as the tradeoff for the
+  simplicity of stateless, ephemeral, ARC-managed runners rather than
+  trying to build checkpoint/resume into CI jobs themselves.
+
+### Gaps / not yet explored
+
+- Attempted `gh run cancel` on the still-running retried job as a
+  cleanup step, expecting a clean stop. It didn't take effect — the run
+  stayed `in_progress` well past when the cancellation was requested.
+  Likely explanation, not fully confirmed: a cancellation request needs
+  the *current* runner to acknowledge and stop, but this run's runner had
+  already been through one forced replacement, and a second manual
+  `kubectl delete pod` (to force cleanup) triggered ARC to spin up yet
+  another fresh replacement that restarted the job again — i.e., the
+  cancellation signal and ARC's automatic-replacement behavior may have
+  been racing each other, with replacement "winning" each time. Ended up
+  just letting the (now much-shortened) workflow finish naturally rather
+  than continuing to fight this. Worth a real, careful follow-up: does
+  `gh run cancel` actually reach an ARC-managed ephemeral runner
+  reliably, or does forcibly killing/replacing a runner pod interfere
+  with graceful cancellation specifically?
+- `containerMode` was left at its simplest setting (jobs run directly in
+  the runner container); Kubernetes-mode or dind-mode runners (letting a
+  CI job itself launch further pods, or build Docker images) would need
+  revisiting Project 1's rootless-BuildKit-vs-DinD findings in this new
+  context — a natural next step, not done here.
+- No autoscaling behavior under real concurrent load was tested
+  (`maxRunners: 3`, but only ever exercised one job at a time).
