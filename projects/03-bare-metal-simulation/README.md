@@ -328,3 +328,64 @@ correctly, but does not exercise etcd quorum loss/recovery (which needs
 architecture, not something to gloss over. A genuine multi-member
 etcd-quorum-loss drill belongs in Project 5's disaster exercises if this
 cluster is ever expanded to 3 control-plane nodes.
+
+### Step 7: GitOps (Argo CD)
+
+Chose Argo CD over Flux for this exercise mainly for its UI/CLI making the
+reconciliation loop easy to inspect directly, matching the roadmap's own
+division: Terraform (not used yet in this project) would own
+machines/network/cluster-foundations, Argo CD owns frequently-changing
+application state — this step introduces that second half concretely.
+
+- Installed via the official manifest
+  (`kubectl apply -n argocd -f .../install.yaml`) — hit the well-known
+  `metadata.annotations: Too long: must have at most 262144 bytes` error on
+  one large CRD (`applicationsets.argoproj.io`), because client-side
+  `kubectl apply` stores the entire previous config as an annotation and
+  this CRD's schema exceeds the 256KiB annotation size limit. Fixed with
+  `--server-side --force-conflicts`, which doesn't have this problem (no
+  last-applied-config annotation needed).
+- Exposed `argocd-server` via MetalLB (`kubectl patch svc ... -p
+  '{"spec":{"type":"LoadBalancer"}}'`) — got `192.168.122.201`, the pool's
+  second address, reusing the same mechanism proven in step 4.
+- **Application target**: rather than reusing Project 2's manifests
+  (which reference `ci-registry:5000` — Project 1/2's *host-side* Docker
+  registry, unreachable from this VM cluster per step 5's findings), wrote
+  a small dedicated `gitops-demo/` workload in this repo referencing the
+  step-5 *cluster-internal* registry (`192.168.122.200:5000`) instead, and
+  pointed an Argo CD `Application` at
+  `https://github.com/edbzn/baremetal-ci-experiment.git`,
+  path `projects/03-bare-metal-simulation/gitops-demo`, with
+  `syncPolicy.automated: {prune: true, selfHeal: true}`.
+
+**Verified both core GitOps guarantees concretely, not just installed the
+tooling:**
+
+1. **Push-to-deploy**: committed and pushed a change (`replicas: 2 -> 4`)
+   to this repo, then confirmed Argo CD picked it up — the
+   `Application`'s `status.sync.revision` matched the exact new commit
+   hash (`3ebf499...`), and `kubectl get deploy` showed 4 replicas
+   actually running. (Manually triggered a hard refresh rather than
+   waiting out Argo CD's default 3-minute poll interval — a legitimate
+   operational action, not a workaround for something broken.)
+2. **Self-healing / drift correction**: manually ran `kubectl scale
+   deploy gitops-demo --replicas=1` directly against the cluster —
+   deliberately bypassing git entirely, simulating either an operator
+   mistake or a compromised/misbehaving process touching the cluster
+   directly. Within roughly 10 seconds, `kubectl get events` showed Argo
+   CD's controller deleting/recreating pods to bring the count back to 4
+   (the git-declared value), and `Application.status.operationState`
+   confirmed a `Succeeded` sync operation had run automatically,
+   unprompted, immediately after the drift.
+
+**Why this matters for the roadmap's CI platform framing**: this is the
+concrete mechanism behind "GitOps controllers are better at continuously
+reconciling frequently changing Kubernetes workloads" than Terraform —
+Terraform would need to be *re-run* to notice and fix drift; Argo CD's
+controller is always watching and reverts it automatically, without
+anyone needing to remember to do anything. For a CI platform specifically,
+this means CI-facing workload config (runner Deployments, RBAC,
+NetworkPolicy for the CI namespace) drifting away from its declared state
+— whether by accident or by a compromised job trying to modify its own
+environment — gets corrected automatically rather than silently
+persisting until someone notices.

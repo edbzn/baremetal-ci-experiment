@@ -1,0 +1,25 @@
+# Argo CD Application: reconciles gitops-demo/ from this repo onto the
+# cluster automatically. This is the GitOps controller side of the
+# roadmap's division of labor — Terraform (not used in this project) would
+# own machines/network/cluster-foundations, Argo CD owns this kind of
+# frequently-changing application state.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitops-demo
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edbzn/baremetal-ci-experiment.git
+    targetRevision: main
+    path: projects/03-bare-metal-simulation/gitops-demo
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitops-demo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
