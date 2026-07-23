@@ -1,0 +1,63 @@
+# Exercises: ClusterIP Service + DNS resolution across pods.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-app-svc
+  namespace: ci
+spec:
+  selector:
+    app: sample-app
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+# A second target that actually listens, to complete the DNS+Service+connect
+# loop meaningfully (sample-app is a one-shot script, not a server).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo-server
+  namespace: ci
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo-server
+  template:
+    metadata:
+      labels:
+        app: echo-server
+    spec:
+      containers:
+        - name: echo
+          image: docker.io/library/busybox:1.36
+          command: ["sh", "-c", "while true; do echo -e 'HTTP/1.1 200 OK\r\n\r\nhello from echo-server' | nc -l -p 8080; done"]
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-server-svc
+  namespace: ci
+spec:
+  selector:
+    app: echo-server
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dns-client
+  namespace: ci
+  labels:
+    app: dns-client
+spec:
+  restartPolicy: Never
+  containers:
+    - name: client
+      image: ci-registry:5000/sample-app:v1
+      command: ["sleep", "3600"]

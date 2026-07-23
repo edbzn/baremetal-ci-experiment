@@ -1,0 +1,32 @@
+# Exercises: RBAC — a ServiceAccount that can only list/get Pods in its own
+# namespace, nothing else, and definitely not cluster-wide.
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-readonly-pods
+  namespace: ci
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-reader
+  namespace: ci
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-readonly-pods-binding
+  namespace: ci
+subjects:
+  - kind: ServiceAccount
+    name: ci-readonly-pods
+    namespace: ci
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io

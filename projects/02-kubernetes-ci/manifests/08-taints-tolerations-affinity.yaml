@@ -1,0 +1,49 @@
+# Exercises: taints/tolerations + nodeAffinity. Prereq (applied via kubectl,
+# not here, since taints/labels are cluster state not namespaced objects):
+#   kubectl label node ci-learning-worker  node-role=trusted-ci
+#   kubectl label node ci-learning-worker2 node-role=system
+#   kubectl taint node ci-learning-worker  node-role=trusted-ci:NoSchedule
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: no-toleration-job
+  namespace: ci
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: sample-app
+          image: ci-registry:5000/sample-app:v1
+      # No toleration for the trusted-ci taint — should schedule onto
+      # worker2 (the untainted node) or control-plane's untainted... but
+      # control-plane has its own taint, so it should land on worker2.
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: trusted-ci-job
+  namespace: ci
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      tolerations:
+        - key: node-role
+          operator: Equal
+          value: trusted-ci
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role
+                    operator: In
+                    values: ["trusted-ci"]
+      containers:
+        - name: sample-app
+          image: ci-registry:5000/sample-app:v1

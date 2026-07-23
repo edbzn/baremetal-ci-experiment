@@ -1,0 +1,44 @@
+# Exercises: requests vs limits, and what happens when the scheduler cannot
+# find a node satisfying requested resources.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fits-easily
+  namespace: ci
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: sample-app
+          image: ci-registry:5000/sample-app:v1
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "32Mi"
+            limits:
+              cpu: "200m"
+              memory: "64Mi"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: impossible-request
+  namespace: ci
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: sample-app
+          image: ci-registry:5000/sample-app:v1
+          resources:
+            requests:
+              # No node in this 3-node kind cluster has 500 CPU cores —
+              # this should stay Pending forever with a scheduling failure
+              # event, not crash or get killed.
+              cpu: "500"
+              memory: "32Mi"

@@ -1,0 +1,43 @@
+# Exercises: PVC + StorageClass with WaitForFirstConsumer binding, and an
+# emptyDir for ephemeral scratch space (the more common CI-job pattern —
+# most CI jobs don't need persistent storage, they need fast disposable
+# scratch space).
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ci-cache-pvc
+  namespace: ci
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pvc-writer
+  namespace: ci
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: sample-app
+          image: ci-registry:5000/sample-app:v1
+          command: ["sh", "-c", "echo persisted-data > /cache/marker.txt && cat /cache/marker.txt"]
+          volumeMounts:
+            - name: cache
+              mountPath: /cache
+            - name: scratch
+              mountPath: /scratch
+      volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: ci-cache-pvc
+        - name: scratch
+          emptyDir:
+            sizeLimit: 500Mi

@@ -1,0 +1,64 @@
+# Exercises: bare Pod, Deployment, Job, CronJob — same image (Project 1's
+# sample-app), four different controllers reconciling it differently.
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bare-pod
+  namespace: ci
+spec:
+  restartPolicy: Never
+  containers:
+    - name: sample-app
+      image: ci-registry:5000/sample-app:v1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-app-deploy
+  namespace: ci
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sample-app
+  template:
+    metadata:
+      labels:
+        app: sample-app
+    spec:
+      containers:
+        - name: sample-app
+          image: ci-registry:5000/sample-app:v1
+          command: ["sh", "-c", "while true; do ./hello.sh; sleep 30; done"]
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sample-app-job
+  namespace: ci
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: sample-app
+          image: ci-registry:5000/sample-app:v1
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sample-app-cron
+  namespace: ci
+spec:
+  schedule: "*/2 * * * *"
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: sample-app
+              image: ci-registry:5000/sample-app:v1

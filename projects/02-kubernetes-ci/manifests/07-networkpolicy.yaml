@@ -1,0 +1,75 @@
+# Exercises: default-deny NetworkPolicy + explicit allow. Two target pods
+# (allowed / denied by label), one client pod, tested before and after the
+# policy exists.
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: netpol-client
+  namespace: ci
+  labels:
+    role: client
+spec:
+  containers:
+    - name: client
+      image: ci-registry:5000/sample-app:v1
+      command: ["sleep", "3600"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: netpol-target
+  namespace: ci
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: netpol-target
+  template:
+    metadata:
+      labels:
+        app: netpol-target
+    spec:
+      containers:
+        - name: echo
+          image: docker.io/library/busybox:1.36
+          command: ["sh", "-c", "while true; do echo -e 'HTTP/1.1 200 OK\r\n\r\nok' | nc -l -p 8080; done"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: netpol-target-svc
+  namespace: ci
+spec:
+  selector:
+    app: netpol-target
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+# Default-deny all ingress to netpol-target, then explicitly allow only from
+# pods labeled role=client.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: ci
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-client-to-target
+  namespace: ci
+spec:
+  podSelector:
+    matchLabels:
+      app: netpol-target
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              role: client

@@ -1,0 +1,13 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: ci-learning
+containerdConfigPatches:
+  # Route pulls for our insecure local registry through containerd's
+  # mirror mechanism instead of needing per-node /etc/docker/daemon.json.
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."ci-registry:5000"]
+      endpoint = ["http://ci-registry:5000"]
+nodes:
+  - role: control-plane
+  - role: worker
+  - role: worker
