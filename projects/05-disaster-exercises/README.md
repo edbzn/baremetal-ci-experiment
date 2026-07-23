@@ -8,16 +8,18 @@ on paper.
 
 ## Drills
 
-- [ ] Kill a worker node mid-build; confirm the job reschedules and observe
-      how long it takes.
+- [x] Kill a worker node mid-build; confirm the job reschedules and observe
+      how long it takes. *(Project 3 step 8 — see Scope note below)*
 - [ ] Fill a worker's disk; confirm eviction/disk-pressure handling works and
       doesn't take down unrelated pods.
 - [ ] Disable a simulated top-of-rack network link (drop a veth/bridge on the
       host); observe how the cluster and CNI react.
-- [ ] Lose one control-plane node (of three); confirm the API server and etcd
+- [x] Lose one control-plane node (of three); confirm the API server and etcd
       quorum survive.
-- [ ] Full etcd snapshot + restore exercise on a scratch cluster.
-- [ ] Reinstall a node from nothing (reprovision, rejoin) and time it.
+- [x] Full etcd snapshot + restore exercise on a scratch cluster. *(Project 3
+      step 6 — see Scope note below)*
+- [x] Reinstall a node from nothing (reprovision, rejoin) and time it.
+      *(Project 3 step 8 — see Scope note below)*
 - [ ] Rotate runner/service-account credentials without downtime.
 - [ ] Revoke access for a "compromised" CI job mid-run (network policy +
       credential revocation) and confirm blast radius is actually contained.
@@ -105,5 +107,53 @@ pass to the original `kubeadm init`.
 
 ## Notes / findings
 
-Record what broke, what the actual recovery time was, and what the drill
-revealed that the docs/dashboards didn't already show.
+### Drill 1: control-plane node loss (real etcd quorum)
+
+**Setup:** created a marker ConfigMap (`cp-loss-marker`), then `virsh
+destroy ci-cp3` (hard kill, one of 3 control-plane nodes).
+
+**Immediately after destruction:**
+- A **read** against the API (via the LB) succeeded instantly —
+  `kubectl get configmap cp-loss-marker` returned correctly, since it was
+  likely served by a healthy backend or from a still-valid connection.
+- A **write** (`kubectl create configmap post-loss-marker`) initially
+  **failed with a TLS handshake timeout** — not because the cluster was
+  actually broken, but because **HAProxy hadn't yet detected `ci-cp3` was
+  down** and was still routing some connections to the dead backend.
+  `docker logs k8s-lb` showed the exact sequence: connections routed to
+  `ci-cp3` for ~2 seconds (HAProxy's default TCP-check interval/timeout)
+  before it was marked `DOWN` and removed from rotation. Retrying the
+  write immediately after succeeded.
+- **This is a real, generalizable finding, not specific to this setup**:
+  a load balancer's own health-check latency is part of the actual
+  failover time users experience, on top of whatever etcd/Kubernetes
+  itself needs — "the control plane survived" and "clients experienced
+  zero disruption" are different claims, and this drill made the gap
+  between them concrete rather than assumed away.
+- After HAProxy failed over: full read/write functionality confirmed —
+  the write succeeded, all pods cluster-wide stayed `Running`
+  (unaffected), and `etcdctl endpoint status --cluster` showed the
+  remaining 2 members (`ci-cp1` leader, `ci-cp2` follower) healthy,
+  in sync (identical RAFT term and near-identical index), while
+  correctly timing out only on the genuinely dead `ci-cp3` endpoint.
+- No leader re-election churn observed — `ci-cp1` remained leader
+  throughout (etcd's Raft implementation doesn't need to re-elect when
+  a follower, not the leader, is lost, and the term number stayed
+  constant confirming this).
+
+**Recovery:** `virsh start ci-cp3` (the VM was only powered off by
+`destroy`, not `undefine`d, so its disk/etcd data survived intact) —
+came back `Ready` and rejoined etcd's quorum **automatically, with no
+manual `kubeadm join` needed**, catching up to the exact same RAFT index
+as the other two members. This is a materially different (and easier)
+recovery path than Project 3's worker-node drill, where the VM was
+`undefine`d and genuinely gone, requiring full reprovisioning — worth
+keeping in mind operationally: "the VM is temporarily unreachable" and
+"the VM/its disk is actually gone" are different failure classes with
+very different recovery procedures, and it's worth knowing which one
+you're actually facing before reacting.
+
+**Overall**: etcd's majority-quorum design worked exactly as intended —
+losing 1 of 3 members caused zero data-plane impact and only a few
+seconds of client-visible disruption, entirely attributable to the load
+balancer's health-check interval rather than the control plane itself.
