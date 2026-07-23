@@ -1,0 +1,195 @@
+probe-host-access	Set up job	﻿2026-07-23T12:24:42.7541891Z Current runner version: '2.336.0'
+probe-host-access	Set up job	2026-07-23T12:24:42.7546436Z Runner name: 'arc-runner-set-rtbcc-runner-nnkmk'
+probe-host-access	Set up job	2026-07-23T12:24:42.7546919Z Runner group name: 'Default'
+probe-host-access	Set up job	2026-07-23T12:24:42.7547449Z Machine name: 'arc-runner-set-rtbcc-runner-nnkmk'
+probe-host-access	Set up job	2026-07-23T12:24:42.7549168Z ##[group]GITHUB_TOKEN Permissions
+probe-host-access	Set up job	2026-07-23T12:24:42.7550792Z Contents: read
+probe-host-access	Set up job	2026-07-23T12:24:42.7551053Z Metadata: read
+probe-host-access	Set up job	2026-07-23T12:24:42.7551377Z Packages: read
+probe-host-access	Set up job	2026-07-23T12:24:42.7551667Z ##[endgroup]
+probe-host-access	Set up job	2026-07-23T12:24:42.7552752Z Secret source: Actions
+probe-host-access	Set up job	2026-07-23T12:24:42.7553274Z Prepare workflow directory
+probe-host-access	Set up job	2026-07-23T12:24:42.7787731Z Prepare all required actions
+probe-host-access	Set up job	2026-07-23T12:24:42.7847874Z Complete job name: probe-host-access
+probe-host-access	Identity and capabilities	﻿2026-07-23T12:24:42.8356255Z ##[group]Run echo "== whoami / id =="
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.8356635Z [36;1mecho "== whoami / id =="[0m
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.8356885Z [36;1mid[0m
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.8357078Z [36;1mecho[0m
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.8357423Z [36;1mecho "== effective capabilities =="[0m
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.8357764Z [36;1mcat /proc/self/status | grep -i cap[0m
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.8358023Z [36;1mecho[0m
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.8358250Z [36;1mecho "== can we read capability names? =="[0m
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.8358876Z [36;1mcommand -v capsh && capsh --decode=$(cat /proc/self/status | grep CapEff | awk '{print $2}') || echo "capsh not installed"[0m
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.8376253Z shell: /usr/bin/bash -e {0}
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.8376669Z ##[endgroup]
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.8565816Z == whoami / id ==
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.8566215Z uid=1001(runner) gid=1001(runner) groups=1001(runner),27(sudo),100(users),123(docker)
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.8566489Z 
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.8566588Z == effective capabilities ==
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.8703691Z CapInh:	0000000000000000
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.9345228Z CapPrm:	0000000000000000
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.9378577Z CapEff:	0000000000000000
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.9387388Z CapBnd:	00000000a80425fb
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.9424296Z CapAmb:	0000000000000000
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.9433972Z 
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.9434377Z == can we read capability names? ==
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.9434928Z /usr/sbin/capsh
+probe-host-access	Identity and capabilities	2026-07-23T12:24:42.9435302Z 0x0000000000000000=
+probe-host-access	Host filesystem access attempts	﻿2026-07-23T12:24:42.9547253Z ##[group]Run echo "== host root filesystem markers =="
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9547637Z [36;1mecho "== host root filesystem markers =="[0m
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9547982Z [36;1mfor p in /host /rootfs /var/lib/kubelet /etc/kubernetes; do[0m
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9548312Z [36;1m  if [ -e "$p" ]; then[0m
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9548683Z [36;1m    echo "FOUND: $p exists"[0m
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9548970Z [36;1m    ls -la "$p" 2>&1 | head -5[0m
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9549221Z [36;1m  else[0m
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9549427Z [36;1m    echo "not present: $p"[0m
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9549661Z [36;1m  fi[0m
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9549849Z [36;1mdone[0m
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9550037Z [36;1mecho[0m
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9550299Z [36;1mecho "== can we read /etc/shadow (host or container's own)? =="[0m
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9550663Z [36;1mcat /etc/shadow 2>&1 || echo "blocked/not found"[0m
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9550952Z [36;1mecho[0m
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9551198Z [36;1mecho "== can we see host block devices under /dev? =="[0m
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9551614Z [36;1mls /dev 2>&1 | grep -E '^(sd|nvme|vd|dm-)' || echo "no host block devices visible"[0m
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9556729Z shell: /usr/bin/bash -e {0}
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9556983Z ##[endgroup]
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9590003Z == host root filesystem markers ==
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9601363Z not present: /host
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9601727Z not present: /rootfs
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9601988Z not present: /var/lib/kubelet
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9602264Z not present: /etc/kubernetes
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9602459Z 
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9602628Z == can we read /etc/shadow (host or container's own)? ==
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9605699Z cat: /etc/shadow: Permission denied
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9606104Z blocked/not found
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9606268Z 
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9606422Z == can we see host block devices under /dev? ==
+probe-host-access	Host filesystem access attempts	2026-07-23T12:24:42.9606902Z no host block devices visible
+probe-host-access	Docker/containerd socket access attempts	﻿2026-07-23T12:24:42.9630375Z ##[group]Run echo "== common container runtime sockets =="
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9630736Z [36;1mecho "== common container runtime sockets =="[0m
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9631293Z [36;1mfor sock in /var/run/docker.sock /run/docker.sock /var/run/containerd/containerd.sock /run/containerd/containerd.sock /run/crio/crio.sock; do[0m
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9631823Z [36;1m  if [ -e "$sock" ]; then[0m
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9632072Z [36;1m    echo "FOUND: $sock exists"[0m
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9632319Z [36;1m    ls -la "$sock"[0m
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9632535Z [36;1m  else[0m
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9632737Z [36;1m    echo "not present: $sock"[0m
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9632975Z [36;1m  fi[0m
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9633157Z [36;1mdone[0m
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9637687Z shell: /usr/bin/bash -e {0}
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9637940Z ##[endgroup]
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9654873Z == common container runtime sockets ==
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9655224Z not present: /var/run/docker.sock
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9655516Z not present: /run/docker.sock
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9655828Z not present: /var/run/containerd/containerd.sock
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9656165Z not present: /run/containerd/containerd.sock
+probe-host-access	Docker/containerd socket access attempts	2026-07-23T12:24:42.9656475Z not present: /run/crio/crio.sock
+probe-host-access	Privilege escalation attempts	﻿2026-07-23T12:24:42.9674606Z ##[group]Run echo "== can we mount anything (needs CAP_SYS_ADMIN)? =="
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9675007Z [36;1mecho "== can we mount anything (needs CAP_SYS_ADMIN)? =="[0m
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9675378Z [36;1mmount -t tmpfs tmpfs /mnt 2>&1 || echo "blocked: mount failed"[0m
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9675688Z [36;1mecho[0m
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9675946Z [36;1mecho "== can we load a kernel module (needs CAP_SYS_MODULE)? =="[0m
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9676386Z [36;1mcommand -v modprobe && modprobe dummy 2>&1 || echo "modprobe not available or blocked"[0m
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9676752Z [36;1mecho[0m
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9677025Z [36;1mecho "== can we write to /proc/sys (needs CAP_SYS_ADMIN typically)? =="[0m
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9677484Z [36;1mecho 1 > /proc/sys/kernel/printk 2>&1 || echo "blocked: write to /proc/sys failed"[0m
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9677837Z [36;1mecho[0m
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9678034Z [36;1mecho "== no_new_privs status =="[0m
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9678300Z [36;1mgrep NoNewPrivs /proc/self/status[0m
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9681507Z shell: /usr/bin/bash -e {0}
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9681749Z ##[endgroup]
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9701838Z == can we mount anything (needs CAP_SYS_ADMIN)? ==
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9720293Z mount: /mnt: cannot mount tmpfs read-only.
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9726689Z /home/runner/_work/_temp/6433ebe1-576d-4a39-b2d1-c4a06022c31e.sh: line 8: /proc/sys/kernel/printk: Read-only file system
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9727286Z        dmesg(1) may have more information after failed mount system call.
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9727600Z blocked: mount failed
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9727725Z 
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9727850Z == can we load a kernel module (needs CAP_SYS_MODULE)? ==
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9728136Z modprobe not available or blocked
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9729150Z 
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9729345Z == can we write to /proc/sys (needs CAP_SYS_ADMIN typically)? ==
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9729672Z blocked: write to /proc/sys failed
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9729828Z 
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9729914Z == no_new_privs status ==
+probe-host-access	Privilege escalation attempts	2026-07-23T12:24:42.9730140Z NoNewPrivs:	0
+probe-host-access	Process/namespace visibility	﻿2026-07-23T12:24:42.9749468Z ##[group]Run echo "== how many processes visible via ps? (host would show hundreds) =="
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9749960Z [36;1mecho "== how many processes visible via ps? (host would show hundreds) =="[0m
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9750313Z [36;1mps aux | wc -l[0m
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9750521Z [36;1mps aux[0m
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9750707Z [36;1mecho[0m
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9750918Z [36;1mecho "== our own PID namespace view =="[0m
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9751204Z [36;1mls /proc | grep -E '^[0-9]+$' | wc -l[0m
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9754918Z shell: /usr/bin/bash -e {0}
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9755161Z ##[endgroup]
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9781802Z == how many processes visible via ps? (host would show hundreds) ==
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9806103Z 8
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9844092Z USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9845602Z runner         1  0.0  0.1   4328  3492 ?        Ss   12:24   0:00 /bin/bash /home/runner/run.sh
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9846560Z runner        10  0.0  0.1   4328  3452 ?        S    12:24   0:00 /bin/bash /home/runner/run-helper.sh
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9847247Z runner        14 23.5  3.4 274043616 102400 ?    Sl   12:24   0:01 /home/runner/bin/Runner.Listener run
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9847784Z runner        30 95.9  3.4 274033872 102312 ?    Sl   12:24   0:00 /home/runner/bin/Runner.Worker spawnclient 149 152
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9848395Z runner        64  0.0  0.1   4324  3504 ?        S    12:24   0:00 /usr/bin/bash -e /home/runner/_work/_temp/d7639856-3ba0-40f6-839f-81ae4118d05a.sh
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9849141Z runner        68  0.0  0.1   7888  4004 ?        R    12:24   0:00 ps aux
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9849470Z 
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9849614Z == our own PID namespace view ==
+probe-host-access	Process/namespace visibility	2026-07-23T12:24:42.9849874Z 8
+probe-host-access	Kubernetes API / ServiceAccount access attempts	﻿2026-07-23T12:24:42.9953752Z ##[group]Run echo "== is a ServiceAccount token mounted? =="
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9954257Z [36;1mecho "== is a ServiceAccount token mounted? =="[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9954612Z [36;1mTOK=/var/run/secrets/kubernetes.io/serviceaccount/token[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9954930Z [36;1mif [ -f "$TOK" ]; then[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9955169Z [36;1m  echo "FOUND: token mounted"[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9955585Z [36;1m  echo "== what can this identity actually do? (should be nothing/minimal for a plain runner pod) =="[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9956079Z [36;1m  NS=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9956466Z [36;1m  CA=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9956888Z [36;1m  for verb_resource in "get pods" "list secrets" "get nodes" "list namespaces"; do[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9957288Z [36;1m    verb=$(echo $verb_resource | cut -d' ' -f1)[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9957622Z [36;1m    resource=$(echo $verb_resource | cut -d' ' -f2)[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9958229Z [36;1m    code=$(curl -sk -o /dev/null -w '%{http_code}' --cacert "$CA" -H "Authorization: *** $TOK)" \[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9958906Z [36;1m      "https://kubernetes.default.svc/api/v1/namespaces/$NS/${resource}?limit=1" 2>&1)[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9959373Z [36;1m    echo "  $verb $resource in own namespace -> http $code"[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9959674Z [36;1m  done[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9959866Z [36;1melse[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9960111Z [36;1m  echo "not present: no ServiceAccount token mounted"[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9960402Z [36;1mfi[0m
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9966393Z shell: /usr/bin/bash -e {0}
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9966645Z ##[endgroup]
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:42.9994172Z == is a ServiceAccount token mounted? ==
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:43.0006702Z FOUND: token mounted
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:43.0027711Z == what can this identity actually do? (should be nothing/minimal for a plain runner pod) ==
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:43.0154010Z   get pods in own namespace -> http 403
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:43.0264282Z   list secrets in own namespace -> http 403
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:43.0383463Z   get nodes in own namespace -> http 403
+probe-host-access	Kubernetes API / ServiceAccount access attempts	2026-07-23T12:24:43.0511281Z   list namespaces in own namespace -> http 403
+probe-host-access	Cross-namespace network reach attempts	﻿2026-07-23T12:24:43.0558016Z ##[group]Run echo "== can we resolve/reach the internal registry (should be UNREACHABLE - different network entirely)? =="
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0558804Z [36;1mecho "== can we resolve/reach the internal registry (should be UNREACHABLE - different network entirely)? =="[0m
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0559421Z [36;1mcurl -s --max-time 3 http://192.168.122.200:5000/v2/_catalog 2>&1 || echo "blocked/unreachable"[0m
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0559807Z [36;1mecho[0m
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0560062Z [36;1mecho "== can we reach the Kubernetes API server directly? =="[0m
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0560526Z [36;1mcurl -sk --max-time 3 https://kubernetes.default.svc/version 2>&1 || echo "blocked/unreachable"[0m
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0561068Z [36;1mecho[0m
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0561376Z [36;1mecho "== can we reach kubelet's read-only port on the node (10255), if it exists? =="[0m
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0561939Z [36;1mcurl -s --max-time 3 http://$(hostname -i 2>/dev/null || echo unknown):10255/pods 2>&1 || echo "blocked/unreachable"[0m
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0568025Z shell: /usr/bin/bash -e {0}
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0568278Z ##[endgroup]
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0653452Z == can we resolve/reach the internal registry (should be UNREACHABLE - different network entirely)? ==
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0708049Z {"repositories":[]}
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0708694Z 
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0720547Z == can we reach the Kubernetes API server directly? ==
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0794227Z {
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0799306Z   "major": "1",
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0801522Z   "minor": "31",
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0817548Z   "gitVersion": "v1.31.14",
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0828181Z   "gitCommit": "5e00b99bac504844579ec74886b6cc5c9611ca19",
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0829056Z   "gitTreeState": "clean",
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0831491Z   "buildDate": "2025-11-11T20:18:11Z",
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0832174Z   "goVersion": "go1.24.9",
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0832512Z   "compiler": "gc",
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0832789Z   "platform": "linux/amd64"
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0833116Z }
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0833602Z == can we reach kubelet's read-only port on the node (10255), if it exists? ==
+probe-host-access	Cross-namespace network reach attempts	2026-07-23T12:24:43.0834171Z blocked/unreachable
+probe-host-access	Summary	﻿2026-07-23T12:24:43.0857637Z ##[group]Run echo "Drill complete. See each step's output above for pass/fail per probe."
+probe-host-access	Summary	2026-07-23T12:24:43.0858238Z [36;1mecho "Drill complete. See each step's output above for pass/fail per probe."[0m
+probe-host-access	Summary	2026-07-23T12:24:43.0865255Z shell: /usr/bin/bash -e {0}
+probe-host-access	Summary	2026-07-23T12:24:43.0865519Z ##[endgroup]
+probe-host-access	Summary	2026-07-23T12:24:43.0900658Z Drill complete. See each step's output above for pass/fail per probe.
+probe-host-access	Complete job	﻿2026-07-23T12:24:43.0958369Z Cleaning up orphan processes

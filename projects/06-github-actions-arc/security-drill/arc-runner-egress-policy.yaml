@@ -1,0 +1,84 @@
+# Fixes the gap found by the security drill: arc-runners had no
+# NetworkPolicy at all, so the CI runner could reach any internal
+# cluster service (confirmed: reached the internal registry, which it
+# has no legitimate reason to talk to).
+#
+# Default-deny egress, then explicitly allow:
+#   - DNS (needed for basically everything, including resolving
+#     external hosts for the allow-internet rule below)
+#   - "The real internet" via an ipBlock that excludes all RFC1918
+#     private ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16) and the
+#     cluster's own pod/service CIDRs. This lets actions/checkout,
+#     dependency downloads, and the GitHub API keep working (a CI
+#     runner has a real, legitimate need for outbound internet access)
+#     while blocking every internal destination — the registry, the
+#     Kubernetes API server's ClusterIP, Argo CD, anything else running
+#     on this cluster's private network.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+  namespace: arc-runners
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: arc-runners
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-external-internet-egress
+  namespace: arc-runners
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8       # covers the pod CIDR (10.244.0.0/16) and any other 10.x internal use
+              - 172.16.0.0/12
+              - 192.168.0.0/16   # covers the libvirt host network (192.168.122.0/24) -- registry, API server LB, etc.
+---
+# The ARC runner's own controller/listener side-channel AND this drill's
+# own API probes both legitimately need to reach the Kubernetes API
+# server. First attempt used a plain NetworkPolicy ipBlock rule for
+# 10.96.0.1/32 (the API server's ClusterIP) -- this did NOT work and
+# caused real job failures (curl hung ~2.5 minutes before timing out,
+# rather than being cleanly rejected). Root cause: Cilium's ipBlock/CIDR
+# selectors match against the actual wire-level destination, but Service
+# ClusterIP traffic gets DNAT'd to a real backend Pod IP by Cilium's own
+# datapath *before* policy enforcement sees it -- so a ClusterIP never
+# actually appears as the policy-visible destination, and the ipBlock
+# rule silently never matches. Cilium's own docs explicitly warn against
+# this pattern and recommend the toEntities: kube-apiserver selector
+# instead, which is tracked internally against the real backend
+# regardless of DNAT/tunneling. Needs a CiliumNetworkPolicy (the plain
+# Kubernetes NetworkPolicy API has no equivalent to toEntities).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kubernetes-api-egress
+  namespace: arc-runners
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
