@@ -1,5 +1,5 @@
 # VM inventory for Project 3 (bare-metal simulation via nested libvirt/KVM VMs)
 # Regenerate IPs with: virsh net-dhcp-leases default
 ci-cp1      192.168.122.140   control-plane
-ci-worker1  192.168.122.236   worker
+ci-worker1  192.168.122.102   worker  (replaced 2026-07-23 after step 8's kill/rejoin drill; was .236)
 ci-worker2  192.168.122.109   worker

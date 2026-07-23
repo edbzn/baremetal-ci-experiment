@@ -389,3 +389,89 @@ NetworkPolicy for the CI namespace) drifting away from its declared state
 — whether by accident or by a compromised job trying to modify its own
 environment — gets corrected automatically rather than silently
 persisting until someone notices.
+
+### Step 8: kill and rejoin a worker node
+
+`ci-worker1` was running real, meaningful workloads at the time (the
+step-5 registry, MetalLB's controller, 2 of 4 `gitops-demo` replicas) —
+deliberately not an idle node, so this exercises actual failure impact
+rather than a no-op.
+
+**Sequence:**
+1. `virsh destroy ci-worker1` — hard-kills the VM process outright (not a
+   graceful shutdown), simulating real hardware loss rather than a clean
+   drain.
+2. Watched the cluster's own detection timeline, not just the end state:
+   - ~20s after destruction: node transitioned `Ready` → `NotReady`
+     (kubelet node-lease heartbeat expiring).
+   - Pods already scheduled on the dead node kept showing `Running` in
+     the API server's last-known state for some time — the API server
+     has no way to know otherwise until the node-controller's taint
+     eviction logic acts.
+   - `gitops-demo` (4 replicas via a Deployment/ReplicaSet) got **2 fresh
+     replacement pods on `ci-worker2` almost immediately** — the
+     ReplicaSet controller doesn't wait for confirmation the old pods are
+     dead, it just notices "N ready pods < desired N" and creates more.
+     The 2 stale pods still bound to the dead node stuck around, still
+     tainted with `node.kubernetes.io/not-ready:NoExecute ... for 300s`.
+   - The **registry** (`replicas: 1`, no PVC) behaved differently: with
+     only one desired replica, there was no "not enough ready replicas"
+     signal until the old pod was actually removed — it only got
+     rescheduled onto `ci-worker2` once the 300s
+     not-ready-toleration window fully expired. This is a concrete,
+     observed illustration of why replica count matters for failure
+     recovery speed, not just raw availability — a single-replica
+     workload waits out the full toleration window; a multi-replica one
+     self-heals almost immediately via the same mechanism proven in
+     step 7's GitOps drift test.
+3. `kubectl delete node ci-worker1` — removing the stale Node object is a
+   genuine operator action, not automatic; kubeadm/kubelet won't do this
+   for you when a node is truly gone (as opposed to temporarily
+   unreachable). This is what actually triggers prompt cleanup of the
+   remaining stale pod records, rather than waiting out timers.
+4. Provisioned a **fresh** VM (`scripts/provision-vms.sh ci-worker1` —
+   same script as step 1, proving it's genuinely reusable for this exact
+   purpose) — new disk, new cloud-init run, new DHCP lease
+   (`192.168.122.102`, different from the destroyed VM's `.236`).
+5. Ran the same prereqs script (containerd/kubeadm/kubelet) and the
+   registry containerd config script from step 5 — both proved reusable
+   as-is for a replacement node, not just the original three.
+6. Generated a **fresh** join token (`kubeadm token create
+   --print-join-command` on the control-plane) rather than reusing the
+   original — kubeadm bootstrap tokens expire (24h by default), so a
+   real "replace a node" runbook needs this step, not just the original
+   join command copy-pasted from initial setup.
+7. `kubeadm join` succeeded; new node went `NotReady` → `Ready` once
+   Cilium's daemonset pod scheduled onto it (same dependency observed
+   back in step 3 — a node isn't `Ready` until its CNI is running there).
+
+**Final state verified, not assumed:**
+- All 3 nodes `Ready`, all pods cluster-wide back to `Running`.
+- `gitops-demo`: `4/4` again (Argo CD `Synced`/`Healthy`) — the 2 stale
+  pods were cleaned up and 2 fresh ones scheduled once the node was
+  actually deleted.
+- Both MetalLB `LoadBalancer` IPs (`192.168.122.200` for the registry,
+  `192.168.122.201` for `argocd-server`) survived the node churn and
+  stayed reachable throughout — L2 announcement duty redistributed to a
+  healthy node automatically.
+- **The registry's data was genuinely lost**: `curl
+  http://192.168.122.200:5000/v2/_catalog` returned `{"repositories":[]}`
+  — the `alpine-test` image pushed in step 5 is gone, because the
+  registry Deployment uses an `emptyDir` volume (local to whichever node
+  the pod runs on), and that node was destroyed. This is not a bug in
+  this exercise — it's the exact, concrete consequence of the roadmap's
+  own storage guidance ("do not assume one distributed storage system
+  should serve all five [storage concerns]"; here, zero persistent
+  storage was used at all for something that arguably needed it). A
+  production-intent registry needs a PVC (or, per the roadmap, something
+  like Harbor backed by real storage) — this step makes that requirement
+  concrete rather than theoretical, by actually losing real data to prove
+  the point.
+
+**Overall takeaway**: node loss recovery worked end-to-end and the same
+scripts written for initial provisioning (step 1) and registry config
+(step 5) were directly reusable for replacement — which is itself the
+point of "making node loss and cluster recreation routine" rather than a
+one-off manual scramble. The registry data loss is the one finding that
+should change future design (add a PVC before this cluster is trusted
+with anything real), not just something to note and move past.
