@@ -1,0 +1,47 @@
+# Setup for the credential-rotation drill: a ServiceAccount with a
+# long-lived, explicitly-created token Secret (the older static pattern,
+# still common in CI systems that predate bound service account tokens),
+# and RBAC scoped to reading ConfigMaps in this namespace only.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cred-rotation-demo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-runner-sa
+  namespace: cred-rotation-demo
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ci-runner-sa-token
+  namespace: cred-rotation-demo
+  annotations:
+    kubernetes.io/service-account.name: ci-runner-sa
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cm-reader
+  namespace: cred-rotation-demo
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-runner-sa-binding
+  namespace: cred-rotation-demo
+subjects:
+  - kind: ServiceAccount
+    name: ci-runner-sa
+    namespace: cred-rotation-demo
+roleRef:
+  kind: Role
+  name: cm-reader
+  apiGroup: rbac.authorization.k8s.io

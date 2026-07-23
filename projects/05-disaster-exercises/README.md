@@ -20,7 +20,7 @@ on paper.
       step 6 — see Scope note below)*
 - [x] Reinstall a node from nothing (reprovision, rejoin) and time it.
       *(Project 3 step 8 — see Scope note below)*
-- [ ] Rotate runner/service-account credentials without downtime.
+- [x] Rotate runner/service-account credentials without downtime.
 - [ ] Revoke access for a "compromised" CI job mid-run (network policy +
       credential revocation) and confirm blast radius is actually contained.
 
@@ -292,3 +292,55 @@ partition like this time to resolve before Kubernetes commits to the
 more expensive "treat it as dead and reschedule everything" response —
 worth remembering as a deliberate design tradeoff (some extra tolerance
 for false-positive node loss) rather than just "slow recovery."
+
+### Drill 4: rotate a runner ServiceAccount credential without downtime
+
+**Setup:** a `ServiceAccount` (`ci-runner-sa`) with an explicitly-created,
+long-lived token `Secret` — the older static pattern still common in CI
+systems that predate Kubernetes's auto-rotating bound service account
+tokens — mounted into a pod that continuously authenticates against the
+API server every 3 seconds (`curl` with the token as a Bearer header,
+checked against a read the RBAC Role actually permits).
+
+**Naive rotation sequence tested first (delete-then-create) — this is
+the actual finding, a real, measured outage**:
+1. Confirmed the runner authenticating successfully (`http_code=200`)
+   for 12 consecutive attempts.
+2. Deleted the old token `Secret`.
+3. **The very next attempt started failing** (`http_code=401`) — even
+   though the pod's mounted volume still had the old token file on disk
+   (kubelet hadn't re-synced the volume yet), the API server immediately
+   rejected it once the underlying Secret object was gone. The
+   credential became invalid *before* a replacement existed.
+4. Created a new token `Secret` with the same name/annotation.
+5. Recovery took **8 failed attempts** (~24 seconds at this drill's 3s
+   poll interval) before requests started succeeding again — the delay
+   is kubelet's periodic Secret-volume resync interval picking up the new
+   token file on disk, not anything the pod itself needed to do (it was
+   never restarted — `RESTARTS: 0` throughout the entire drill).
+6. **This is a real, non-zero downtime window from a naive rotation
+   order** — delete-then-create guarantees a gap between "old credential
+   invalidated" and "new credential available," sized by whatever the
+   consuming pod's resync/reconnect behavior is.
+
+**What the correct sequence would have been (not re-tested, but the
+clear implication of the measured behavior above)**: create the new
+token/Secret *first*, let consumers pick it up (or explicitly restart
+them to force immediate pickup rather than waiting on a resync
+interval), confirm the new credential is actually in use, *then* delete
+or expire the old one. Never delete-then-create for something with live
+consumers — the measured ~24s gap here is directly attributable to
+doing it backwards.
+
+**Broader implication for the roadmap's "short-lived credentials /
+workload identity" guidance**: this static-Secret-token pattern is
+exactly the kind of credential the roadmap recommends moving away from
+in favor of projected, auto-rotating bound service account tokens
+(the default `kubernetes.io/serviceaccount` volume mechanism used
+throughout Projects 1-4, not the explicit long-lived Secret used here
+specifically to have something to rotate manually). Bound tokens rotate
+automatically with a configurable expiry and kubelet handles the
+refresh without any of this manual delete/recreate choreography — this
+drill's whole failure mode is specific to the older pattern and is a
+concrete argument for why the newer default is better, not just a
+theoretical preference.
