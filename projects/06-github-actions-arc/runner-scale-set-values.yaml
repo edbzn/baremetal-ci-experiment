@@ -1,0 +1,17 @@
+githubConfigUrl: "https://github.com/edbzn/baremetal-ci-experiment"
+githubConfigSecret: arc-github-app-secret
+
+minRunners: 0
+maxRunners: 3
+
+containerMode:
+  type: "" # default: each job runs directly in the runner container (dind/kubernetes modes need extra setup, not used for this first pass)
+
+template:
+  spec:
+    nodeSelector:
+      node-role: isolated-ci
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["/home/runner/run.sh"]

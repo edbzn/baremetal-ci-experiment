@@ -1,0 +1,22 @@
+name: Self-hosted CI (bare-metal cluster)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  hello-from-the-cluster:
+    runs-on: arc-runner-set
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show where this is actually running
+        run: |
+          echo "hostname: $(hostname)"
+          echo "kernel: $(uname -a)"
+          cat /etc/os-release | head -2
+
+      - name: List repo contents
+        run: ls -la
