@@ -133,3 +133,77 @@ via two independent, concrete checks:
    specifically confirms hardware-accelerated virtualization, not QEMU's
    slow software TCG fallback — meaning the nested-KVM prerequisite
    genuinely paid off rather than silently degrading to emulation.
+
+### Step 4: benchmarks — Kata (`kata-qemu`) vs plain `runc`
+
+All numbers below measured directly on Project 3's real cluster (3
+libvirt VMs, 2 vCPU / 3GB RAM workers), not estimated. Scripts in
+`benchmarks/`.
+
+| Dimension | runc | Kata (`kata-qemu`) | Delta |
+|---|---|---|---|
+| Pod cold-start (creation→Ready, 5-run avg) | ~0.90s | ~3.2s | **~3.5x slower** |
+| Host-side memory overhead per pod | ~1MB (bare `sleep` process RSS) | ~314MB (QEMU ~264MB + shim ~45MB + 2×virtiofsd ~6MB) | **~300x more** |
+| Disk write throughput (200MB `dd`) | 3.8 GB/s | 116 MB/s | **~33x slower** |
+| Disk read throughput (200MB `dd`, cached) | 20.9 GB/s | 2.4 GB/s | **~9x slower** |
+| Network throughput (iperf3, same-node) | 67.5 Gbit/s | 3.8 Gbit/s | **~18x slower** |
+| Failure detection/recovery semantics | Standard kubelet container-exit event | **Identical** — shim reports sandbox failure through the same CRI path | No practical difference |
+
+**Cold start**: measured via `kubectl wait --for=condition=Ready`,
+5 runs each. Kata's absolute number (~3.2s) is higher but still
+sub-4-second — not the "many seconds/minutes" some assume, though real
+enough to matter for a CI system running many short jobs per minute.
+
+**Memory overhead**: measured directly via host-side `ps`/`ctr task ps`
+RSS on the same node, both pods pinned there for a fair comparison. The
+`kata-qemu` RuntimeClass ships with `overhead.podFixed: {cpu: 250m,
+memory: 320Mi}` already configured (by kata-deploy, not something we had
+to add) — closely matching the measured ~314MB, confirming the
+scheduler's accounting is realistic, not just a nominal placeholder.
+
+**Peak parallelism — the actual constraining resource was CPU, not
+memory**: scaled a `kata-qemu` Deployment on the 2 isolated-ci nodes
+(2 vCPU / 3GB RAM each) up to 20 replicas. 14 scheduled successfully, 6
+stayed `Pending` with `FailedScheduling: ... Insufficient cpu` (not
+insufficient memory) — the `250m` CPU overhead per pod against 2 vCPUs
+per node hits its ceiling (~8 pods/node) before the ~320Mi memory
+overhead does (~9 pods/node on the smaller-memory node observed with real
+`free -h` numbers: 175MB/110MB free after 5 pods each). Both resources
+matter, but CPU overhead is the tighter constraint on this particular
+node shape — a different node's CPU:memory ratio could easily flip which
+one binds first, so this is a "measure your own nodes" finding, not a
+universal rule.
+
+**Disk I/O — the single largest, most CI-relevant number here**: a
+33x write-throughput regression through virtio-fs is the most consequential
+finding for actual CI build workloads (checkout, dependency install,
+compilation, layer export are all I/O-heavy). This is the concrete,
+measured version of the roadmap's own "guest-image management" and
+virtio-fs overhead concern — not a vague caveat, a specific multiplier
+to weigh against the isolation benefit for any I/O-heavy job class.
+
+**Network I/O**: 18x throughput reduction, from traffic having to
+traverse the guest's virtio-net device rather than host-level
+veth/bridge/eBPF forwarding. Relevant for CI jobs that push large
+artifacts/images or pull large dependencies over the network — directly
+compounds with the registry-pull path evaluated in Project 3.
+
+**Failure recovery — no meaningful difference, a genuinely reassuring
+result**: killed the container's main process directly for `runc`, and
+killed the actual host-side `qemu-system-x86_64` process (simulating a
+hypervisor-level crash, not just an in-guest process crash) for Kata.
+Both produced the exact same Kubernetes-visible outcome: a `Killing`
+event, `Error` status, no restart (governed by `restartPolicy`, same as
+any pod). The `containerd-shim-kata-v2` correctly translates a sandbox
+failure into the same CRI-level signal kubelet already knows how to
+handle — meaning Kata's isolation doesn't complicate the operational
+failure-handling story at all, only the resource-cost one.
+
+**Overall picture**: Kata's isolation is real and verified (step 2-3), and
+its cost is concrete and now measured rather than assumed — roughly
+3-4x on latency-sensitive dimensions (startup, network), an order of
+magnitude or more on throughput-sensitive ones (disk, and by extension
+anything I/O-bound), and ~300MB fixed memory + 250m fixed CPU per pod
+regardless of workload size. None of these costs are prohibitive for a
+small number of genuinely high-risk jobs; all of them compound badly if
+applied by default to every CI job.

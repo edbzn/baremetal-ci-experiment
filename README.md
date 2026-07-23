@@ -43,7 +43,7 @@ docs/
 - [x] Project 1: local container CI
 - [x] Project 2: conventional Kubernetes CI (kind/k3d)
 - [x] Project 3: rebuild on simulated bare metal
-- [ ] Project 4: Kata Containers microVMs
+- [x] Project 4: Kata Containers microVMs
 - [ ] Project 5: disaster exercises
 
 See `projects/*/README.md` for the goal, steps, and checkpoints of each phase.
