@@ -12,7 +12,7 @@ on paper.
       how long it takes. *(Project 3 step 8 — see Scope note below)*
 - [x] Fill a worker's disk; confirm eviction/disk-pressure handling works and
       doesn't take down unrelated pods.
-- [ ] Disable a simulated top-of-rack network link (drop a veth/bridge on the
+- [x] Disable a simulated top-of-rack network link (drop a veth/bridge on the
       host); observe how the cluster and CNI react.
 - [x] Lose one control-plane node (of three); confirm the API server and etcd
       quorum survive.
@@ -228,3 +228,67 @@ Deleting them let their controllers recreate healthy replacements —
 worth distinguishing "pods this drill broke" from "pre-existing mess
 from prior drills" rather than attributing all observed errors to
 whichever drill happens to be running when you look.
+
+### Drill 3: simulated network link failure
+
+Rather than dropping a veth/bridge globally (all VMs share the single
+libvirt `virbr0` bridge in this lab setup, so a global drop would sever
+every VM at once, not simulate a single top-of-rack link failure), cut
+one node's network specifically at the hypervisor level: `virsh
+domif-setlink ci-worker2 vnet2 down` — this sets the virtual NIC's link
+state down, closer to a real physical link failure than an iptables
+rule (which would still let the guest OS believe its NIC is up).
+
+**Setup:** deployed a marker pod (`netfail-test`, a `sh` loop printing an
+incrementing counter every 5s) pinned to `ci-worker2` before cutting the
+link, specifically so its counter's continuity could prove whether the
+container process itself survived the outage or was restarted.
+
+**Immediately after the link-down:**
+- SSH to the node timed out (`Connection timed out`, not "connection
+  refused" — confirming genuine network-layer isolation, not just the
+  SSH daemon being down).
+- The rest of the cluster was **entirely unaffected**: a new ConfigMap
+  write succeeded immediately, and a fresh pod scheduled on the healthy
+  `ci-worker1` ran and resolved DNS normally — no isolated node has any
+  special claim on cluster-wide control-plane functions in this
+  architecture.
+- `ci-worker2` transitioned `Ready` → `NotReady` after ~20 seconds — the
+  same kubelet node-lease timeout observed in Project 3's VM-destruction
+  drill. `netfail-test`'s pod itself kept showing `STATUS: Running`
+  (stale, from the API server's last-known state — it has no way to know
+  otherwise once its node stops reporting), with the same 300s
+  `not-ready`/`unreachable` `NoExecute` toleration window from Project 3
+  governing when it would eventually be considered for eviction.
+
+**Recovery — the actual point of distinguishing this drill from Project
+3's**: restored the link (`virsh domif-setlink ci-worker2 vnet2 up`).
+- SSH reachable again within seconds.
+- `ci-worker2` returned to `Ready` **automatically**, with **no manual
+  intervention at all** — no `kubectl delete node`, no rejoin, no
+  reprovisioning. This is the key structural difference from Project 3's
+  drill: there, the VM was genuinely destroyed (`virsh destroy` +
+  `undefine`), so kubelet itself was gone and recovery required treating
+  it as a dead node (delete + reprovision + rejoin). Here, kubelet never
+  stopped running — it just couldn't communicate — so once the network
+  path returned, it resumed reporting on its own.
+- **The original `netfail-test` pod was still the exact same pod,
+  `RESTARTS: 0`, and its counter had kept incrementing the entire time**
+  (`tick 27` by the time it was checked, having started well before the
+  outage) — definitive proof the container process itself was never
+  interrupted. The outage was purely a *reporting* gap from the cluster's
+  perspective, not an actual workload interruption.
+
+**Takeaway — this distinction is the actual finding**: "a node is
+temporarily unreachable" and "a node is actually gone" produce
+superficially similar symptoms at first (`NotReady`, stale pod status)
+but have completely different correct responses. Treating a transient
+network partition as if the node were dead (deleting the Node object,
+forcing rescheduling) would have been actively counterproductive here —
+it would have caused unnecessary pod churn and duplicate work for a
+problem that was already self-healing. The 300s
+not-ready/unreachable toleration window exists precisely to give a
+partition like this time to resolve before Kubernetes commits to the
+more expensive "treat it as dead and reschedule everything" response —
+worth remembering as a deliberate design tradeoff (some extra tolerance
+for false-positive node loss) rather than just "slow recovery."
