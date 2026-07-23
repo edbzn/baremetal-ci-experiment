@@ -1,0 +1,21 @@
+# MetalLB layer-2 mode: advertise Service LoadBalancer IPs from a small
+# static pool carved out of the libvirt "default" network's address range
+# (192.168.122.200-220), excluded from that network's DHCP range so there's
+# no collision with future VMs.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: ci-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 192.168.122.200-192.168.122.220
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: ci-l2-adv
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - ci-pool

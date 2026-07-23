@@ -151,3 +151,39 @@ Kubernetes-aware, and nodes can die" property without needing hardware yet.
   kindnet ever exposed in Project 2.
 - DNS resolution confirmed working through CoreDNS at the standard
   `10.96.0.10` ClusterIP, same mechanism as Project 2.
+
+### Step 4: MetalLB in layer-2 mode
+
+- Shrunk the libvirt `default` network's DHCP range from
+  `192.168.122.2-254` down to `.2-.199` (`virsh net-update ... delete/add
+  ip-dhcp-range --live --config`), carving out `.200-.220` as a static pool
+  for MetalLB with no risk of DHCP handing the same address to a future VM.
+- Installed via Helm (`metallb/metallb` into a new `metallb-system`
+  namespace). This chart version bundles `frr-k8s` (FRRouting) pods
+  alongside the classic `speaker` daemonset even when only L2 mode is
+  configured — worth knowing so the extra `frr-k8s-*` pods aren't mistaken
+  for something separately installed.
+- Configured via CRs: an `IPAddressPool` (`192.168.122.200-220`) and an
+  `L2Advertisement` referencing it.
+- **Verified with a real `type: LoadBalancer` Service**, not just checking
+  CRD status: `kubectl expose deployment ... --type=LoadBalancer` got
+  `EXTERNAL-IP: 192.168.122.200` (the first address in the pool) almost
+  immediately — no cloud provider involved, which is exactly the gap
+  MetalLB exists to fill on bare metal.
+- **Reachability confirmed from the real host machine**, external to the
+  Kubernetes cluster entirely: a plain `curl http://192.168.122.200/` from
+  this host (just an ordinary client on the libvirt network, no kubeconfig
+  or cluster context involved) got a real response from the pod behind the
+  Service.
+- **L2 mechanism confirmed concretely**: `ip neigh show 192.168.122.200`
+  from the host showed a real ARP entry resolving to `ci-worker2`'s actual
+  MAC address — i.e., one specific node answers ARP for the LB IP and
+  becomes the ingress point for that Service's traffic (which then gets
+  forwarded to wherever the actual pod is running, via the same Cilium
+  datapath already verified in step 3). This is the literal mechanism
+  behind "MetalLB in L2 mode" rather than something to take on faith from
+  the CRD's existence.
+- Not yet tested: BGP/FRR-K8s mode (would need a real or simulated router
+  peering with the cluster nodes) — noted as a gap, matching the roadmap's
+  own framing that L2 is the simple lab setup and BGP is worth
+  understanding but not required for this first pass.
