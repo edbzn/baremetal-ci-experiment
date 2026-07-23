@@ -40,7 +40,7 @@ docs/
 
 ## Progress
 
-- [ ] Project 1: local container CI
+- [x] Project 1: local container CI
 - [ ] Project 2: conventional Kubernetes CI (kind/k3d)
 - [ ] Project 3: rebuild on simulated bare metal
 - [ ] Project 4: Kata Containers microVMs
