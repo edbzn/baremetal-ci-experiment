@@ -1,0 +1,28 @@
+# A tiny workload reconciled by Argo CD from this repo, rather than
+# applied by hand — the point of this directory existing is that changes
+# here get picked up automatically once pushed to git, not that the
+# workload itself is interesting.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitops-demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitops-demo
+  namespace: gitops-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gitops-demo
+  template:
+    metadata:
+      labels:
+        app: gitops-demo
+    spec:
+      containers:
+        - name: app
+          image: 192.168.122.200:5000/alpine-test:v1
+          command: ["sh", "-c", "while true; do echo alive; sleep 30; done"]
