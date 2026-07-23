@@ -160,10 +160,19 @@ component).
   `gh run cancel` actually reach an ARC-managed ephemeral runner
   reliably, or does forcibly killing/replacing a runner pod interfere
   with graceful cancellation specifically?
-- `containerMode` was left at its simplest setting (jobs run directly in
-  the runner container); Kubernetes-mode or dind-mode runners (letting a
-  CI job itself launch further pods, or build Docker images) would need
-  revisiting Project 1's rootless-BuildKit-vs-DinD findings in this new
-  context — a natural next step, not done here.
+- ~~`containerMode` was left at its simplest setting~~ — **now explored**:
+  see [`security-drill/README.md`](security-drill/README.md) for a full
+  measured comparison of plain/`dind`/`kubernetes` modes, including a
+  real (approved) host-escape probe against `dind` mode's privileged
+  sidecar, and a real failed-connection confirmation that `kubernetes`
+  mode has no Docker daemon reachable at all without a separately
+  provisioned build service. Reverted back to plain-container mode as
+  the running default afterward — the comparison's conclusion.
 - No autoscaling behavior under real concurrent load was tested
   (`maxRunners: 3`, but only ever exercised one job at a time).
+- Setting up `kubernetes` mode surfaced a real gap in Project 3's
+  cluster: **no dynamic `StorageClass` existed at all** (needed for that
+  mode's required work-volume claim). Installed
+  `rancher/local-path-provisioner` to unblock it — worth folding back
+  into Project 3's own setup notes as a real, generally-useful gap, not
+  something specific to this test.

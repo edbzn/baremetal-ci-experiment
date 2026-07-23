@@ -233,6 +233,60 @@ would combine with that sidecar's privilege for genuine host access —
 this drill deliberately didn't test that combination, since it wasn't
 present in this configuration.
 
+## Follow-up: `containerMode.type: "kubernetes"` — the actually-safer alternative to dind
+
+Switched the runner scale set again, this time to `kubernetes` mode
+(`runner-scale-set-values-kubernetes.yaml`), which needed a real
+prerequisite this cluster didn't have: a dynamic `StorageClass` for the
+mode's required `kubernetesModeWorkVolumeClaim`. Installed
+`rancher/local-path-provisioner` to provide one — a genuine gap in
+Project 3's original cluster setup, not something specific to this test.
+
+**Two real, load-bearing constraints found by hitting them directly,
+not from documentation**:
+1. `kubernetes` mode **rejects any job that doesn't declare a job-level
+   `container:`** — a plain `run:` step directly on the runner fails
+   outright: `##[error]Jobs without a job container are forbidden on
+   this runner, please add a 'container:' to your job or contact your
+   self-hosted runner administrator.` Confirmed via a real failed run
+   before fixing the workflow.
+2. A step-level `container:` key (my first attempt, modeled loosely on
+   the dind-mode workflow) is **not valid YAML for a step** — `container:`
+   only exists at the job level (or via `uses: docker://...` for a
+   single containerized action step). Caught by GitHub's own workflow
+   parser (`HTTP 422: Unexpected value 'container'`) before it even
+   reached a runner.
+
+**Once configured correctly, the actual security picture is meaningfully
+different from `dind` mode**:
+
+| | `containerMode: ""` (plain) | `containerMode: "dind"` | `containerMode: "kubernetes"` |
+|---|---|---|---|
+| `docker.sock` present? | No | Yes (sidecar's own) | **No — none at all** |
+| Job container `CapEff` | `0` | `0` | `00000000a80425fb` (standard non-privileged default set — `CAP_CHOWN`, `CAP_NET_RAW`, `CAP_SETUID`, etc., **no** `CAP_SYS_ADMIN`/`CAP_NET_ADMIN`/`CAP_SYS_MODULE`) |
+| A separate *privileged* container anywhere in the pod? | No | **Yes — the `dind` sidecar, hardcoded `privileged: true`** | No |
+| Can the job build/run Docker images out of the box? | No | Yes | **No — confirmed via a real failed connection**: `failed to connect to the docker API at unix:///var/run/docker.sock ... no such file or directory` |
+
+**The core tradeoff, stated plainly**: `dind` mode gets you
+`docker build` for free, at the structural cost of one always-privileged
+sidecar container per job pod (confirmed hardcoded in ARC's own chart,
+not configurable down). `kubernetes` mode has **no privileged container
+anywhere in the pod at all** — genuinely the safer default architecture
+— but as a direct consequence has **no way to build images without
+separately provisioning a build service** (e.g. Project 1's rootless
+BuildKit, run as its own Deployment the job talks to over the network,
+rather than a sidecar in the same pod). This is exactly the tradeoff the
+top-level roadmap's Project 1 already argued for architecturally
+(rootless BuildKit over Docker-based approaches) — this test confirms
+`kubernetes` mode is the ARC-native way to get that same shape of
+tradeoff for real CI jobs, at the cost of needing to wire up the build
+service yourself rather than getting it for free from the chart.
+
+**Not yet done**: actually wiring a rootless BuildKit service alongside
+`kubernetes`-mode jobs to get a genuinely privileged-sidecar-free image
+build — the natural next step now that both container-mode options have
+been measured, not assumed.
+
 ## Overall verdict
 
 Container-level isolation on this ARC runner is solid by default — the
@@ -249,3 +303,18 @@ unaffected. This closes the gap this project's own setup had left open
 since Project 6 was originally scoped around getting ARC working end to
 end, not around hardening it — now brought in line with the
 NetworkPolicy pattern already proven correct in Projects 2 and 5.
+
+**Across all three `containerMode` options, now measured rather than
+assumed**: plain-container mode and `kubernetes` mode both keep the job
+container itself unprivileged with no host-socket exposure;
+`kubernetes` mode's job container has a normal (non-zero, but
+non-dangerous) default capability set rather than plain mode's fully
+zeroed one, and neither has any privileged container anywhere in the
+pod. `dind` mode is the outlier — it works out of the box for building
+images, but does so via a structurally-hardcoded privileged sidecar, and
+(confirmed directly, not assumed) that sidecar's privilege stayed scoped
+to the pod's own namespace tree rather than reaching the real host node
+in this configuration. For genuinely untrusted or high-risk build jobs,
+`kubernetes` mode plus a separately-provisioned rootless build service is
+the architecturally safer combination; `dind` mode remains the simpler,
+faster-to-set-up option for lower-risk, trusted CI.

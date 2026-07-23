@@ -203,6 +203,21 @@ cross-namespace network reach.
   kube-apiserver` selector via a `CiliumNetworkPolicy` — verified working
   afterward with the registry cleanly blocked in 3 seconds while the API
   server and internet access stayed intact.
+- **All three `containerMode` options measured, not assumed** (also in
+  the [security drill](projects/06-github-actions-arc/security-drill/README.md)):
+  `dind` mode gets `docker build` for free via a sidecar that's
+  hardcoded `privileged: true` with no way to reduce it — a real
+  (user-approved) `--privileged --pid=host` + `nsenter -t 1` escape
+  attempt against it stayed contained (returned the *pod's* own
+  hostname/OS, not the real node's — confirmed by comparing directly
+  against the actual node over SSH), but the structural gap (an
+  always-privileged container in the pod) is real regardless.
+  `kubernetes` mode has no privileged container anywhere in the pod at
+  all — genuinely the safer default — but as a direct, confirmed
+  consequence (`failed to connect to the docker API ... no such file or
+  directory`) has **no way to build images without separately
+  provisioning a build service**, exactly the tradeoff Project 1's
+  rootless-BuildKit recommendation already argued for.
 
 ## Docs
 
@@ -218,9 +233,10 @@ cross-namespace network reach.
   convenience safe for genuinely untrusted build jobs? Flagged in
   Project 1, not yet tested.
 - MetalLB BGP mode (only L2 mode was exercised).
-- Extending Project 6's `containerMode` to Kubernetes-mode or DinD-mode
-  runners (letting a CI job build its own images) — a materially
-  different risk surface than the plain-container mode tested so far.
+- Wiring a real rootless-BuildKit service alongside `kubernetes`-mode ARC
+  runners, to get genuinely privileged-sidecar-free image builds — the
+  natural next step now that both `dind` and `kubernetes` mode have been
+  measured on their own.
 - A cluster-wide NetworkPolicy sweep — Project 6's security drill found
   and fixed the gap for `arc-runners` specifically, but other namespaces
   (e.g. `registry` itself) likely have the same gap in the other

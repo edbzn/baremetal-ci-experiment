@@ -1,0 +1,46 @@
+build-with-kubernetes-mode	Set up job	﻿2026-07-23T13:18:01.4235605Z Current runner version: '2.336.0'
+build-with-kubernetes-mode	Set up job	2026-07-23T13:18:01.4241823Z Runner name: 'arc-runner-set-prmcb-runner-jx6tk'
+build-with-kubernetes-mode	Set up job	2026-07-23T13:18:01.4242289Z Runner group name: 'Default'
+build-with-kubernetes-mode	Set up job	2026-07-23T13:18:01.4242845Z Machine name: 'arc-runner-set-prmcb-runner-jx6tk'
+build-with-kubernetes-mode	Set up job	2026-07-23T13:18:01.4244278Z ##[group]GITHUB_TOKEN Permissions
+build-with-kubernetes-mode	Set up job	2026-07-23T13:18:01.4245991Z Contents: read
+build-with-kubernetes-mode	Set up job	2026-07-23T13:18:01.4246281Z Metadata: read
+build-with-kubernetes-mode	Set up job	2026-07-23T13:18:01.4246733Z Packages: read
+build-with-kubernetes-mode	Set up job	2026-07-23T13:18:01.4247081Z ##[endgroup]
+build-with-kubernetes-mode	Set up job	2026-07-23T13:18:01.4248334Z Secret source: Actions
+build-with-kubernetes-mode	Set up job	2026-07-23T13:18:01.4249584Z Prepare workflow directory
+build-with-kubernetes-mode	Set up job	2026-07-23T13:18:01.4545050Z Prepare all required actions
+build-with-kubernetes-mode	Set up job	2026-07-23T13:18:01.4579822Z Complete job name: build-with-kubernetes-mode
+build-with-kubernetes-mode	Initialize containers	﻿2026-07-23T13:18:01.5061093Z ##[group]Run '/home/runner/k8s/index.js'
+build-with-kubernetes-mode	Initialize containers	2026-07-23T13:18:01.5071212Z shell: /home/runner/externals/node20/bin/node {0}
+build-with-kubernetes-mode	Initialize containers	2026-07-23T13:18:01.5072024Z ##[endgroup]
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	﻿2026-07-23T13:18:12.5916132Z ##[group]Run echo "== is there a docker socket in this mode? (should be none -- no dind sidecar) =="
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.5917100Z [36;1mecho "== is there a docker socket in this mode? (should be none -- no dind sidecar) =="[0m
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.5917968Z [36;1mls -la /var/run/docker.sock 2>&1 || echo "not present, as expected"[0m
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.5918422Z [36;1mecho[0m
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.5918581Z [36;1mecho "== CapEff =="[0m
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.5918736Z [36;1mcat /proc/self/status | grep CapEff[0m
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.5918886Z [36;1mecho[0m
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.5919017Z [36;1mecho "hostname of this job's container:"[0m
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.5919173Z [36;1mhostname[0m
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.5919302Z [36;1mcat /etc/os-release | head -2[0m
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.5920907Z shell: sh -e {0}
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.5921064Z ##[endgroup]
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.6033925Z ##[group]Run '/home/runner/k8s/index.js'
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.6034419Z shell: /home/runner/externals/node20/bin/node {0}
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.6034601Z ##[endgroup]
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.8363665Z == is there a docker socket in this mode? (should be none -- no dind sidecar) ==
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.8364329Z ls: /var/run/docker.sock: No such file or directory
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.8364670Z not present, as expected
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.8364837Z 
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.8364942Z == CapEff ==
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.8365199Z CapEff:	00000000a80425fb
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.8365354Z 
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.8365482Z hostname of this job's container:
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.8365837Z arc-runner-set-prmcb-runner-jx6tk-workflow
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.8366151Z NAME="Alpine Linux"
+build-with-kubernetes-mode	Confirm no docker.sock, no privileged sidecar, and check identity	2026-07-23T13:18:12.8366398Z ID=alpine
+build-with-kubernetes-mode	Stop containers	﻿2026-07-23T13:18:12.8480352Z ##[group]Run '/home/runner/k8s/index.js'
+build-with-kubernetes-mode	Stop containers	2026-07-23T13:18:12.8480896Z shell: /home/runner/externals/node20/bin/node {0}
+build-with-kubernetes-mode	Stop containers	2026-07-23T13:18:12.8481060Z ##[endgroup]
+build-with-kubernetes-mode	Complete job	﻿2026-07-23T13:18:13.0827465Z Cleaning up orphan processes

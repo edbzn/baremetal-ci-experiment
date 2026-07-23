@@ -1,0 +1,37 @@
+try-build-with-kubernetes-mode	Set up job	﻿2026-07-23T13:19:57.6179795Z Current runner version: '2.336.0'
+try-build-with-kubernetes-mode	Set up job	2026-07-23T13:19:57.6185959Z Runner name: 'arc-runner-set-prmcb-runner-hd862'
+try-build-with-kubernetes-mode	Set up job	2026-07-23T13:19:57.6186511Z Runner group name: 'Default'
+try-build-with-kubernetes-mode	Set up job	2026-07-23T13:19:57.6187270Z Machine name: 'arc-runner-set-prmcb-runner-hd862'
+try-build-with-kubernetes-mode	Set up job	2026-07-23T13:19:57.6191226Z ##[group]GITHUB_TOKEN Permissions
+try-build-with-kubernetes-mode	Set up job	2026-07-23T13:19:57.6192974Z Contents: read
+try-build-with-kubernetes-mode	Set up job	2026-07-23T13:19:57.6193277Z Metadata: read
+try-build-with-kubernetes-mode	Set up job	2026-07-23T13:19:57.6193538Z Packages: read
+try-build-with-kubernetes-mode	Set up job	2026-07-23T13:19:57.6193807Z ##[endgroup]
+try-build-with-kubernetes-mode	Set up job	2026-07-23T13:19:57.6194945Z Secret source: Actions
+try-build-with-kubernetes-mode	Set up job	2026-07-23T13:19:57.6195662Z Prepare workflow directory
+try-build-with-kubernetes-mode	Set up job	2026-07-23T13:19:57.6504697Z Prepare all required actions
+try-build-with-kubernetes-mode	Set up job	2026-07-23T13:19:57.6541442Z Complete job name: try-build-with-kubernetes-mode
+try-build-with-kubernetes-mode	Initialize containers	﻿2026-07-23T13:19:57.7132039Z ##[group]Run '/home/runner/k8s/index.js'
+try-build-with-kubernetes-mode	Initialize containers	2026-07-23T13:19:57.7137980Z shell: /home/runner/externals/node20/bin/node {0}
+try-build-with-kubernetes-mode	Initialize containers	2026-07-23T13:19:57.7138553Z ##[endgroup]
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	﻿2026-07-23T13:20:04.0211206Z ##[group]Run docker version 2>&1 || echo "FAILED as expected: no docker daemon reachable in kubernetes mode without an explicit BuildKit/dind service"
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	2026-07-23T13:20:04.0211763Z [36;1mdocker version 2>&1 || echo "FAILED as expected: no docker daemon reachable in kubernetes mode without an explicit BuildKit/dind service"[0m
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	2026-07-23T13:20:04.0213351Z shell: sh -e {0}
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	2026-07-23T13:20:04.0213485Z ##[endgroup]
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	2026-07-23T13:20:04.0266025Z ##[group]Run '/home/runner/k8s/index.js'
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	2026-07-23T13:20:04.0267506Z shell: /home/runner/externals/node20/bin/node {0}
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	2026-07-23T13:20:04.0267744Z ##[endgroup]
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	2026-07-23T13:20:04.3181851Z Client:
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	2026-07-23T13:20:04.3183910Z  Version:           29.6.2
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	2026-07-23T13:20:04.3184290Z  API version:       1.55
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	2026-07-23T13:20:04.3184492Z  Go version:        go1.26.5
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	2026-07-23T13:20:04.3184693Z  Git commit:        dfc4efb
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	2026-07-23T13:20:04.3185158Z  Built:             Thu Jul 16 16:11:35 2026
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	2026-07-23T13:20:04.3185384Z  OS/Arch:           linux/amd64
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	2026-07-23T13:20:04.3185628Z  Context:           default
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	2026-07-23T13:20:04.3186086Z failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+try-build-with-kubernetes-mode	Try to build an image (expect this to fail - no docker daemon reachable)	2026-07-23T13:20:04.3186981Z FAILED as expected: no docker daemon reachable in kubernetes mode without an explicit BuildKit/dind service
+try-build-with-kubernetes-mode	Stop containers	﻿2026-07-23T13:20:04.3330292Z ##[group]Run '/home/runner/k8s/index.js'
+try-build-with-kubernetes-mode	Stop containers	2026-07-23T13:20:04.3330753Z shell: /home/runner/externals/node20/bin/node {0}
+try-build-with-kubernetes-mode	Stop containers	2026-07-23T13:20:04.3330889Z ##[endgroup]
+try-build-with-kubernetes-mode	Complete job	﻿2026-07-23T13:20:04.5900565Z Cleaning up orphan processes
