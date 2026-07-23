@@ -190,3 +190,112 @@ reconciliation behaviors:
   no instances defined yet — deliberately left as a forward pointer to
   Project 4, since defining a `kata` RuntimeClass with no Kata runtime
   installed would just fail at pod creation, not demonstrate anything.
+
+### Step 3: minimal runner controller
+
+`scripts/runner-controller.sh [queue-dir]`: polls a queue directory every 2s
+for `*.task` files (each one a shell command), and for each one creates a
+`batch/v1` Job — `backoffLimit: 0` (no retries, fail fast and visibly),
+`ttlSecondsAfterFinished: 300` (auto-cleanup so a busy queue doesn't leave
+hundreds of `Completed` Jobs around), labeled `app=ci-runner,task=<name>`
+for observability. Processed task files move to `queue/.processed/` so a
+restarted controller doesn't reprocess them.
+
+This deliberately stands in for a real GitLab/GitHub Actions runner
+controller — same fundamental pattern (external queue → one Job → one pod
+→ observe result), just without the webhook/API integration a real one
+would have.
+
+**Test run:** two tasks queued simultaneously — one that succeeds, one that
+`exit 1`s after printing output.
+- Controller picked up both within one poll cycle, created
+  `ci-job-task-a-<id>` and `ci-job-task-b-<id>`.
+- `ci-job-task-a-*`: `STATUS Complete`, logs show `task A running` / `task A
+  done`.
+- `ci-job-task-b-*`: `STATUS Failed`, pod status `Error`, logs show `task B
+  running` (then the `exit 1`). Job's events: `BackoffLimitExceeded` — with
+  `backoffLimit: 0` it fails immediately and visibly rather than silently
+  retrying, which is the right default for CI (a flaky retry-forever job
+  hides real failures).
+- Each task genuinely got its own pod, its own log stream, and an
+  independent success/failure outcome — the core property this whole
+  project is meant to establish before layering node pools, network policy,
+  and (in Project 4) microVM isolation on top of the same pattern.
+
+### Step 4: dedicated node pools via labels + taints
+
+Node labeling/tainting itself was done in step 2 (`ci-learning-worker` =
+`node-role=trusted-ci` + taint, `ci-learning-worker2` = `node-role=system`,
+no taint) — cluster-scoped state, so it persists across namespace/manifest
+changes. This step wires the runner controller to actually use it, rather
+than leaving the taint/toleration mechanism as an isolated exercise.
+
+- Added to every Job the runner controller creates: a toleration for
+  `node-role=trusted-ci:NoSchedule`, a `requiredDuringScheduling`
+  nodeAffinity for `node-role=trusted-ci`, and resource
+  requests/limits (`100m`/`500m` CPU, `32Mi`/`128Mi` memory, `200Mi`
+  ephemeral-storage limit).
+- Verified: a queued task's pod landed specifically on
+  `ci-learning-worker` (the trusted-ci node), confirmed via `kubectl get
+  pods -o wide` and `kubectl describe job` showing the toleration.
+- Also fixed a real gap while doing this: the Job's `metadata.labels`
+  (`app=ci-runner`) doesn't propagate to the pod unless it's *also* set on
+  `spec.template.metadata.labels` — without that, `kubectl get pods -l
+  app=ci-runner` finds nothing even though the pod exists and is healthy.
+  Worth remembering generally: Job/Deployment/CronJob-level labels and
+  pod-template labels are two separate label sets: the controller consults
+  `spec.selector` (which must match the pod template's labels) to find its
+  own pods; a label on the outer object alone is not visible on the pod.
+- This is the concrete mechanism the roadmap's `node-role=system` /
+  `trusted-ci` / `isolated-ci` / `large-build` pool design depends on: CI
+  Jobs opt in to a pool via toleration+affinity, and nothing without both
+  can land on (or accidentally starve) that pool's capacity.
+
+### Step 5: default-deny egress + explicit CI egress
+
+`manifests/09-ci-egress-policy.yaml`: `default-deny-egress` (blanket
+`podSelector: {} / policyTypes: [Egress]`, no rules), plus two explicit
+allows — DNS (`udp/tcp 53` to any namespace, needed for basically everything)
+and the local registry (`ipBlock: 172.21.0.0/16 tcp/5000` — the kind Docker
+network's actual subnet, since `ci-registry` is a Docker container outside
+the cluster's pod network, not a Kubernetes Service, so it has to be
+allowlisted by CIDR rather than podSelector/namespaceSelector).
+
+**Debugging note — a real methodology trap, not just a result:** initial
+tests using `kubectl run ... --restart=Never --command -- sh -c '...; echo
+done'` (a pod that runs briefly then exits) showed egress *succeeding* even
+under `default-deny-egress`, which looked exactly like "kindnet doesn't
+enforce egress policy." That conclusion was wrong. Inspecting
+kindnet's actual nftables table directly (`docker exec <node> nft list
+table inet kindnet-network-policies`) showed the mechanism: the engine
+tracks currently-live pod IPs in an nftables set (`podips-v4`/`podips-v6`)
+and only queues packets to/from those IPs to its userspace policy decision
+process; packets to/from IPs *not* in that set pass through untouched.
+Short-lived pods can complete and exit before (or right around) their IP
+being added to that live set, so the test request may go out before
+enforcement is actually active for that pod — a race, not a policy gap.
+Switching to a genuinely long-lived pod (`sleep 300`) and confirming its IP
+was actually present in `podips-v4` before testing gave the correct,
+consistent result every time.
+
+**Sequence, tested with a long-lived pod and confirmed against the live
+nftables state at each step:**
+1. Baseline (no egress policy): pod reaches a cross-namespace test Service
+   freely.
+2. `default-deny-egress` applied: same request now times out (`curl` exit
+   28, `http_code=000`) — confirmed against a pod whose IP was verified
+   present in the enforcement set.
+3. `allow-dns-egress` added: DNS resolution (`nslookup`) succeeds again;
+   the registry request still blocked.
+4. `allow-registry-egress` added: registry request succeeds
+   (`http_code=200`); the original cross-namespace test Service — never
+   allowlisted — stays blocked throughout.
+
+**Takeaway for the roadmap's "default-deny and explicit egress paths"
+principle:** it's real and enforceable on this stack, but verifying it
+requires care — a short-lived CI job pod might genuinely race the policy
+engine's own bookkeeping. Worth keeping in mind before trusting any
+NetworkPolicy test that uses one-shot pods, and worth re-testing directly
+against Kata microVM pods in Project 4, since the enforcement mechanism
+(nftables/nfqueue on the host network namespace) interacts with microVM
+networking differently than with plain container networking.

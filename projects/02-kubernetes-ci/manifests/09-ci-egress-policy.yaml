@@ -1,0 +1,53 @@
+# Default-deny all egress from the ci namespace, then explicitly allow only
+# what CI jobs actually need: DNS resolution (to kube-dns/CoreDNS) and
+# reaching the local registry (which lives outside the cluster, on the
+# Docker host network, reached via the containerd mirror -> ci-registry
+# container).
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+  namespace: ci
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: ci
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# The registry is NOT a cluster-internal pod (it's the ci-registry Docker
+# container on the host, reached via containerd's registry mirror over the
+# Docker bridge network) — NetworkPolicy only governs pod-to-pod/pod-to-CIDR
+# traffic within the cluster's CNI, so egress to it must be allowed via a
+# non-pod-selector `to.ipBlock` covering the Docker network the registry
+# lives on, not a podSelector/namespaceSelector.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-registry-egress
+  namespace: ci
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 172.21.0.0/16
+      ports:
+        - protocol: TCP
+          port: 5000
