@@ -1,0 +1,107 @@
+name: Security sandbox drill (host-access probes)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe-host-access:
+    runs-on: arc-runner-set
+    steps:
+      - name: Identity and capabilities
+        run: |
+          echo "== whoami / id =="
+          id
+          echo
+          echo "== effective capabilities =="
+          cat /proc/self/status | grep -i cap
+          echo
+          echo "== can we read capability names? =="
+          command -v capsh && capsh --decode=$(cat /proc/self/status | grep CapEff | awk '{print $2}') || echo "capsh not installed"
+
+      - name: Host filesystem access attempts
+        run: |
+          echo "== host root filesystem markers =="
+          for p in /host /rootfs /var/lib/kubelet /etc/kubernetes; do
+            if [ -e "$p" ]; then
+              echo "FOUND: $p exists"
+              ls -la "$p" 2>&1 | head -5
+            else
+              echo "not present: $p"
+            fi
+          done
+          echo
+          echo "== can we read /etc/shadow (host or container's own)? =="
+          cat /etc/shadow 2>&1 || echo "blocked/not found"
+          echo
+          echo "== can we see host block devices under /dev? =="
+          ls /dev 2>&1 | grep -E '^(sd|nvme|vd|dm-)' || echo "no host block devices visible"
+
+      - name: Docker/containerd socket access attempts
+        run: |
+          echo "== common container runtime sockets =="
+          for sock in /var/run/docker.sock /run/docker.sock /var/run/containerd/containerd.sock /run/containerd/containerd.sock /run/crio/crio.sock; do
+            if [ -e "$sock" ]; then
+              echo "FOUND: $sock exists"
+              ls -la "$sock"
+            else
+              echo "not present: $sock"
+            fi
+          done
+
+      - name: Privilege escalation attempts
+        run: |
+          echo "== can we mount anything (needs CAP_SYS_ADMIN)? =="
+          mount -t tmpfs tmpfs /mnt 2>&1 || echo "blocked: mount failed"
+          echo
+          echo "== can we load a kernel module (needs CAP_SYS_MODULE)? =="
+          command -v modprobe && modprobe dummy 2>&1 || echo "modprobe not available or blocked"
+          echo
+          echo "== can we write to /proc/sys (needs CAP_SYS_ADMIN typically)? =="
+          echo 1 > /proc/sys/kernel/printk 2>&1 || echo "blocked: write to /proc/sys failed"
+          echo
+          echo "== no_new_privs status =="
+          grep NoNewPrivs /proc/self/status
+
+      - name: Process/namespace visibility
+        run: |
+          echo "== how many processes visible via ps? (host would show hundreds) =="
+          ps aux | wc -l
+          ps aux
+          echo
+          echo "== our own PID namespace view =="
+          ls /proc | grep -E '^[0-9]+$' | wc -l
+
+      - name: Kubernetes API / ServiceAccount access attempts
+        run: |
+          echo "== is a ServiceAccount token mounted? =="
+          TOK=/var/run/secrets/kubernetes.io/serviceaccount/token
+          if [ -f "$TOK" ]; then
+            echo "FOUND: token mounted"
+            echo "== what can this identity actually do? (should be nothing/minimal for a plain runner pod) =="
+            NS=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+            CA=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            for verb_resource in "get pods" "list secrets" "get nodes" "list namespaces"; do
+              verb=$(echo $verb_resource | cut -d' ' -f1)
+              resource=$(echo $verb_resource | cut -d' ' -f2)
+              code=$(curl -sk -o /dev/null -w '%{http_code}' --cacert "$CA" -H "Authorization: Bearer $(cat $TOK)" \
+                "https://kubernetes.default.svc/api/v1/namespaces/$NS/${resource}?limit=1" 2>&1)
+              echo "  $verb $resource in own namespace -> http $code"
+            done
+          else
+            echo "not present: no ServiceAccount token mounted"
+          fi
+
+      - name: Cross-namespace network reach attempts
+        run: |
+          echo "== can we resolve/reach the internal registry (should be UNREACHABLE - different network entirely)? =="
+          curl -s --max-time 3 http://192.168.122.200:5000/v2/_catalog 2>&1 || echo "blocked/unreachable"
+          echo
+          echo "== can we reach the Kubernetes API server directly? =="
+          curl -sk --max-time 3 https://kubernetes.default.svc/version 2>&1 || echo "blocked/unreachable"
+          echo
+          echo "== can we reach kubelet's read-only port on the node (10255), if it exists? =="
+          curl -s --max-time 3 http://$(hostname -i 2>/dev/null || echo unknown):10255/pods 2>&1 || echo "blocked/unreachable"
+
+      - name: Summary
+        if: always()
+        run: echo "Drill complete. See each step's output above for pass/fail per probe."
