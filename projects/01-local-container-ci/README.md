@@ -15,6 +15,42 @@ You should be able to explain:
 - What OCI images/registries actually are (manifest, layers, config).
 - The difference between `containerd`, `runc`, and `BuildKit`.
 
+## Reproducing this locally
+
+Requires `kernel.apparmor_restrict_unprivileged_userns=0` (see
+`docs/decisions.md`) — check with
+`cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns`; if it prints
+`1`, set it via `/etc/sysctl.d/99-userns.conf` and `sudo sysctl --system`.
+
+```bash
+docker network create ci-experiment  # if not already present
+
+docker run -d --name ci-registry --network ci-experiment --restart unless-stopped \
+  -p 127.0.0.1:5000:5000 -v ci-registry-data:/var/lib/registry registry:2
+
+docker run -d --name ci-buildkitd --network ci-experiment --restart unless-stopped \
+  --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
+  --security-opt systempaths=unconfined --device /dev/fuse \
+  -v ci-buildkit-cache:/home/user/.local/share/buildkit \
+  -v "$(pwd)/config/buildkitd.toml:/home/user/.config/buildkit/buildkitd.toml:ro" \
+  moby/buildkit:rootless \
+  --addr unix:///run/user/1000/buildkit/buildkitd.sock --addr tcp://0.0.0.0:1234 \
+  --config /home/user/.config/buildkit/buildkitd.toml
+
+./scripts/run-ci-job.sh mytest
+```
+
+`config/buildkitd.toml` marks the local registry as plain-HTTP/insecure —
+needed because this registry has no TLS, and the `insecure=true` attribute
+on `buildctl`'s own `--export-cache`/`--import-cache` flags didn't work on
+this BuildKit version (see Step 3 notes below).
+
+To simulate losing the runner (as in the Step 3 cache test): `docker rm -f
+ci-buildkitd`, recreate it with a **new** volume name (e.g.
+`ci-buildkit-cache-fresh`) so it starts with a genuinely empty local cache,
+then re-run the script — it should still show `CACHED` steps via the
+registry-imported cache.
+
 ## Steps
 
 1. Run a local OCI registry (`registry:2`) on this host.
