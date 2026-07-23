@@ -1,0 +1,20 @@
+# Cilium as CNI for the kubeadm bare-metal-simulated cluster. Kept alongside
+# kube-proxy (not replacing it yet) so the CNI swap itself — kindnet's
+# minimal datapath -> Cilium's eBPF datapath — is the one variable changing
+# versus Project 2, rather than also changing kube-proxy at the same time.
+kubeProxyReplacement: "false"
+
+ipam:
+  mode: cluster-pool
+  operator:
+    clusterPoolIPv4PodCIDRList: ["10.244.0.0/16"]
+
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+
+operator:
+  replicas: 1

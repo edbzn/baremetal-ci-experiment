@@ -1,0 +1,28 @@
+#cloud-config
+hostname: __HOSTNAME__
+manage_etc_hosts: true
+users:
+  - name: edouard
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - __SSH_PUBKEY__
+chpasswd:
+  expire: false
+ssh_pwauth: false
+package_update: true
+packages:
+  - qemu-guest-agent
+  - conntrack
+runcmd:
+  - systemctl enable --now qemu-guest-agent
+  - swapoff -a
+  - sed -i '/ swap / s/^/#/' /etc/fstab
+  - modprobe overlay
+  - modprobe br_netfilter
+  - echo "overlay" > /etc/modules-load.d/containerd.conf
+  - echo "br_netfilter" >> /etc/modules-load.d/containerd.conf
+  - echo "net.ipv4.ip_forward = 1" > /etc/sysctl.d/99-kubernetes-forwarding.conf
+  - echo "net.bridge.bridge-nf-call-iptables = 1" >> /etc/sysctl.d/99-kubernetes-forwarding.conf
+  - echo "net.bridge.bridge-nf-call-ip6tables = 1" >> /etc/sysctl.d/99-kubernetes-forwarding.conf
+  - sysctl --system
