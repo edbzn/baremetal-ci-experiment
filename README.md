@@ -134,6 +134,38 @@ q35,accel=kvm` process), then benchmarked against `runc` with a
   stays the default; Kata is reserved for a narrow class of genuinely
   high-risk jobs, based on this measured cost.
 
+**Follow-up: swapped the hypervisor underneath Kata — `kata-fc`
+(Firecracker) vs `kata-qemu`.** Same `RuntimeClass` abstraction, same
+`containerd-shim-kata-v2`, just a different VMM underneath — kata-deploy
+already installs `kata-fc` alongside `kata-qemu` in one Helm chart.
+Verified genuinely running on Firecracker the same way (distinct guest
+kernel, a real `/firecracker` host process, no `virtiofsd` needed at
+all), then re-ran the same benchmark comparison:
+
+| Dimension | `kata-qemu` | `kata-fc` |
+|---|---|---|
+| Cold start | ~3.2s | ~3.17s (**roughly even**) |
+| Memory overhead / pod | ~314MB | ~197MB (**~37% less**) |
+| Disk write throughput | 116 MB/s | 672 MB/s (**~5.8x faster**) |
+| Disk read throughput (cached) | 2.4 GB/s | ~20.2 GB/s (**matches runc**) |
+| Network throughput | 3.8 Gbit/s | 3.49 Gbit/s (**roughly even**) |
+
+- **Real gap found and fixed, not specific to this cluster**: `kata-fc`
+  needs a devicemapper snapshotter (Firecracker's guest rootfs needs a
+  real block device, not overlayfs) that kata-deploy configures a
+  *reference* to but never actually provisions — scheduling failed with
+  `snapshotter devmapper was not found`. Fixed by hand-building a
+  loopback-backed `dmsetup` thin-pool and wiring it into containerd's
+  config on both workers.
+- Firecracker's minimal device model pays off exactly where you'd expect
+  — disk I/O and memory — while startup and network stay roughly even
+  with `kata-qemu` (both dominated by shared costs: guest kernel boot,
+  the virtio-net path). For I/O-heavy CI job classes (checkout,
+  dependency install, layer export), `kata-fc` is a meaningfully better
+  default than `kata-qemu` once the devmapper gap is fixed — it doesn't
+  make Kata's isolation free, just cheaper on the dimension that hurt
+  most.
+
 ## Project 5 — Disaster exercises
 
 [`projects/05-disaster-exercises/`](projects/05-disaster-exercises/README.md)
