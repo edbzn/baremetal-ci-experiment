@@ -20,3 +20,10 @@ jobs:
 
       - name: List repo contents
         run: ls -la
+
+      - name: Long-running step (for the break-it drill)
+        run: |
+          for i in $(seq 1 60); do
+            echo "tick $i"
+            sleep 5
+          done
