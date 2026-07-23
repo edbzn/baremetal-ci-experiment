@@ -1,0 +1,37 @@
+name: DinD security drill
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe-dind-mode:
+    runs-on: arc-runner-set
+    steps:
+      - name: Runner container capabilities and host access
+        run: |
+          echo "== runner container CapEff =="
+          cat /proc/self/status | grep -i cap
+          echo
+          echo "== host filesystem markers =="
+          for p in /host /rootfs /var/lib/kubelet /etc/kubernetes; do
+            [ -e "$p" ] && echo "FOUND: $p" || echo "not present: $p"
+          done
+          echo
+          echo "== host block devices =="
+          ls /dev 2>&1 | grep -E '^(sd|nvme|vd|dm-)' || echo "none visible"
+
+      - name: What can the dind sidecar's privilege reach, from the runner's side
+        run: |
+          echo "== can the runner container see host processes via the dind daemon? =="
+          docker run --rm --pid=host alpine:3.20 sh -c "ps aux | wc -l" 2>&1 || echo "blocked/failed"
+          echo
+          echo "== can we get a root shell on the NODE via a privileged container through dind? =="
+          docker run --rm --privileged --pid=host alpine:3.20 sh -c "nsenter -t 1 -m -u -n -i sh -c 'hostname; cat /etc/os-release | head -2' 2>&1" || echo "blocked/failed"
+
+      - name: Cross-namespace network reach (same as the earlier drill)
+        run: |
+          echo "== internal registry (should be blocked by our NetworkPolicy) =="
+          curl -s --max-time 3 http://192.168.122.200:5000/v2/_catalog 2>&1 || echo "blocked/unreachable"
+          echo
+          echo "== Kubernetes API server (should work via the CiliumNetworkPolicy fix) =="
+          curl -sk --max-time 3 https://kubernetes.default.svc/version 2>&1 || echo "blocked/unreachable"
