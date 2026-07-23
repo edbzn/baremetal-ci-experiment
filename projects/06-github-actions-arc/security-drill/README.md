@@ -17,7 +17,7 @@ before any explicit lockdown.
 | Host filesystem markers (`/host`, `/rootfs`, `/var/lib/kubelet`, `/etc/kubernetes`) | None present | ✅ Contained. No hostPath mounts exposing host paths. |
 | `/etc/shadow` | `Permission denied` | ✅ Contained (this is the container's *own* shadow file, and even that's inaccessible to the `runner` user). |
 | Host block devices under `/dev` | None visible | ✅ Contained. No `--privileged`-style device exposure (matches Project 1's findings on what privileged grants vs. what a default container gets). |
-| Docker/containerd/CRI-O sockets | None present | ✅ Contained. No accidental host-socket mount (the Project 1 DinD/DooD danger). |
+| Docker/containerd/CRI-O sockets | None present (plain-container mode) | ✅ Contained. No accidental host-socket mount (the Project 1 DinD/DooD danger). Note: under `dind` mode (tested separately below), `/var/run/docker.sock` *is* present by design — but confirmed to be the injected sidecar's own isolated daemon, not the host's real socket. |
 | `mount` (needs `CAP_SYS_ADMIN`) | Blocked (`Read-only file system`) | ✅ Contained. |
 | `modprobe` (needs `CAP_SYS_MODULE`) | Not available | ✅ Contained. |
 | Write to `/proc/sys/kernel/printk` | Blocked (`Read-only file system`) | ✅ Contained. |
@@ -148,12 +148,90 @@ locked-down ARC configuration option, not the most secure one.
   non-privileged container boundary genuinely holds on this cluster —
   the CI-specific gap here is a networking oversight in this project's
   own setup, not a fundamental flaw in the isolation model.
-- This drill used the default `containerMode.type: ""` (jobs run directly
-  in the runner container, no DinD/Kubernetes-mode). Project 1's DinD/DooD
-  findings suggest revisiting this specific drill if/when this runner
-  setup is extended to let jobs build Docker images — that's a
+- This drill's main pass used the default `containerMode.type: ""` (jobs
+  run directly in the runner container, no DinD/Kubernetes-mode). The
+  follow-up below tests `dind` mode specifically, since that's a
   meaningfully different risk surface (see Project 1's
-  `dind-experiment/README.md`) not exercised here.
+  `dind-experiment/README.md`) — `kubernetes`-mode remains untested (it
+  needs a dynamic StorageClass this cluster doesn't have provisioned).
+
+## Follow-up: `containerMode.type: "dind"` — does letting a job build images change the risk?
+
+Re-ran a build test and a targeted security drill after switching the
+runner scale set to ARC's `dind` mode (`runner-scale-set-values-dind.yaml`),
+which auto-injects a `docker:dind` sidecar container into the pod and
+wires the `runner` container's `DOCKER_HOST` at it — this is what lets a
+CI job actually run `docker build`/`docker run` inside its own job, the
+capability Project 6's original plain-container mode couldn't provide.
+
+**Setup hiccup, not a security finding but worth recording**: both
+`isolated-ci` workers hit real `DiskPressure` mid-test (76-87% disk used
+on their 19GB VM disks, `0 bytes eligible` for image GC — everything
+pulled across Projects 3-6 is legitimately in use). Freed space by
+uninstalling Project 4's `kata-deploy` (already fully documented, its
+~2GB+4.4GB of images/kernels were the single largest reclaimable chunk)
+rather than resizing disks. A second, known gotcha recurred here too:
+one node's `DiskPressure` condition didn't self-clear even after real
+usage dropped to 62% — the same `systemctl restart kubelet` fix from
+Project 5 was needed again.
+
+**Build test result**: a real `docker build`/`docker run` succeeded
+inside the job (`ghcr.io/actions/actions-runner:latest` runner container,
+Docker 29.6.1 client / 29.6.2 server talking to the injected `dind`
+sidecar). Confirmed the `runner` container itself — the one actually
+executing job `run:` steps — still has `CapEff: 0000000000000000`, same
+as plain-container mode; only the separate `dind` sidecar is
+`privileged: true` (confirmed by ARC's own chart source, not just
+inference).
+
+**The actual security question — can a job use the privileged `dind`
+sidecar to escape to the real host node?** Tested directly (approved as
+a read-only host-identification probe, no destructive action):
+
+```bash
+docker run --rm --pid=host alpine:3.20 sh -c "ps aux | wc -l"
+# -> 7   (same tiny process count as the job's own pod, NOT the real node)
+
+docker run --rm --privileged --pid=host alpine:3.20 sh -c \
+  "nsenter -t 1 -m -u -n -i sh -c 'hostname; cat /etc/os-release | head -2'"
+# -> hostname: arc-runner-set-sp8tf-runner-lvc5t   (the POD's own name)
+# -> NAME="Alpine Linux"                            (the container's own OS, not Ubuntu)
+```
+
+**Result: contained, not escaped** — and this is worth understanding
+precisely rather than just checking the box. `--pid=host` inside a
+container running under Kubernetes refers to the *pod's* PID namespace
+(or, more precisely here, the `dind` container's own nested Docker
+context), not the real underlying node's PID namespace — confirmed by
+directly comparing against the real node's actual hostname
+(`ci-worker1`/`ci-worker2`, checked via SSH) and OS (`Ubuntu 24.04.4
+LTS`), neither of which matched what `nsenter -t 1` returned. Docker's
+own `--privileged` flag grants full capabilities *within whatever kernel
+namespace context the dind daemon itself is running in* — and that
+daemon is itself a container, still bound by Kubernetes's own pod-level
+namespace isolation, not the bare host's.
+
+**Why this matters, stated carefully**: this result should **not** be
+read as "dind mode is as safe as plain-container mode" — Project 1
+already proved a genuinely `--privileged` container (one actually granted
+the host's real kernel namespaces, e.g. via a hostPath/hostPID
+misconfiguration or a container escape bug) gets full host block-device
+and capability access. What this test shows is narrower and still
+important: **ARC's dind sidecar's privilege is scoped to the pod's own
+namespace tree by Kubernetes's pod isolation, and a `--privileged
+--pid=host` container run *inside* that already-namespaced dind daemon
+does not automatically inherit a path to the bare node** the way it would
+if the *pod itself* were granted `hostPID`/`hostNetwork`/a real
+`hostPath` mount. The actual risk surface of dind mode is: (a) the
+`docker:dind` sidecar always runs `securityContext.privileged: true`
+with no way to reduce it via the chart's built-in dind support (confirmed
+in ARC's own `_helpers.tpl`), which is a real, structurally-hardcoded gap
+versus plain-container mode's zero-capability default; and (b) anyone
+who *also* gains `hostPID`/`hostNetwork`/a hostPath on the outer pod spec
+(a separate, avoidable misconfiguration, not something dind mode forces)
+would combine with that sidecar's privilege for genuine host access —
+this drill deliberately didn't test that combination, since it wasn't
+present in this configuration.
 
 ## Overall verdict
 

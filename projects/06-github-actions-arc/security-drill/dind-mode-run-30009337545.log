@@ -1,0 +1,89 @@
+probe-dind-mode	Set up job	﻿2026-07-23T13:00:52.6929432Z Current runner version: '2.336.0'
+probe-dind-mode	Set up job	2026-07-23T13:00:52.6934645Z Runner name: 'arc-runner-set-sp8tf-runner-lvc5t'
+probe-dind-mode	Set up job	2026-07-23T13:00:52.6935154Z Runner group name: 'Default'
+probe-dind-mode	Set up job	2026-07-23T13:00:52.6935758Z Machine name: 'arc-runner-set-sp8tf-runner-lvc5t'
+probe-dind-mode	Set up job	2026-07-23T13:00:52.6938345Z ##[group]GITHUB_TOKEN Permissions
+probe-dind-mode	Set up job	2026-07-23T13:00:52.6940416Z Contents: read
+probe-dind-mode	Set up job	2026-07-23T13:00:52.6940775Z Metadata: read
+probe-dind-mode	Set up job	2026-07-23T13:00:52.6941040Z Packages: read
+probe-dind-mode	Set up job	2026-07-23T13:00:52.6941276Z ##[endgroup]
+probe-dind-mode	Set up job	2026-07-23T13:00:52.6942472Z Secret source: Actions
+probe-dind-mode	Set up job	2026-07-23T13:00:52.6942951Z Prepare workflow directory
+probe-dind-mode	Set up job	2026-07-23T13:00:52.7189849Z Prepare all required actions
+probe-dind-mode	Set up job	2026-07-23T13:00:52.7249904Z Complete job name: probe-dind-mode
+probe-dind-mode	Runner container capabilities and host access	﻿2026-07-23T13:00:52.7813018Z ##[group]Run echo "== runner container CapEff =="
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.7814072Z [36;1mecho "== runner container CapEff =="[0m
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.7814416Z [36;1mcat /proc/self/status | grep -i cap[0m
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.7814686Z [36;1mecho[0m
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.7814912Z [36;1mecho "== host filesystem markers =="[0m
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.7815285Z [36;1mfor p in /host /rootfs /var/lib/kubelet /etc/kubernetes; do[0m
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.7815658Z [36;1m  [ -e "$p" ] && echo "FOUND: $p" || echo "not present: $p"[0m
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.7815955Z [36;1mdone[0m
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.7816153Z [36;1mecho[0m
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.7816370Z [36;1mecho "== host block devices =="[0m
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.7816703Z [36;1mls /dev 2>&1 | grep -E '^(sd|nvme|vd|dm-)' || echo "none visible"[0m
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.7882033Z shell: /usr/bin/bash -e {0}
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.7882423Z ##[endgroup]
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.8923008Z == runner container CapEff ==
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.8947953Z CapInh:	0000000000000000
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.8949002Z CapPrm:	0000000000000000
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.8949715Z CapEff:	0000000000000000
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.8950441Z CapBnd:	00000000a80425fb
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.8951064Z CapAmb:	0000000000000000
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.8951392Z 
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.8951550Z == host filesystem markers ==
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.8952378Z not present: /host
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.8953005Z not present: /rootfs
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.8953653Z not present: /var/lib/kubelet
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.8954346Z not present: /etc/kubernetes
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.8954644Z 
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.8954993Z == host block devices ==
+probe-dind-mode	Runner container capabilities and host access	2026-07-23T13:00:52.8955492Z none visible
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	﻿2026-07-23T13:00:52.9031266Z ##[group]Run echo "== can the runner container see host processes via the dind daemon? =="
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:52.9031783Z [36;1mecho "== can the runner container see host processes via the dind daemon? =="[0m
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:52.9032285Z [36;1mdocker run --rm --pid=host alpine:3.20 sh -c "ps aux | wc -l" 2>&1 || echo "blocked/failed"[0m
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:52.9032668Z [36;1mecho[0m
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:52.9033225Z [36;1mecho "== can we get a root shell on the NODE via a privileged container through dind? =="[0m
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:52.9034178Z [36;1mdocker run --rm --privileged --pid=host alpine:3.20 sh -c "nsenter -t 1 -m -u -n -i sh -c 'hostname; cat /etc/os-release | head -2' 2>&1" || echo "blocked/failed"[0m
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:52.9039193Z shell: /usr/bin/bash -e {0}
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:52.9039443Z ##[endgroup]
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:52.9074069Z == can the runner container see host processes via the dind daemon? ==
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:52.9196683Z Unable to find image 'alpine:3.20' locally
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:54.7610914Z 3.20: Pulling from library/alpine
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:55.2750639Z 25f1d6b1951a: Pulling fs layer
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:55.5398365Z 25f1d6b1951a: Download complete
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:56.3397024Z 25f1d6b1951a: Pull complete
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:56.4399352Z d4050d56ebf2: Download complete
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:56.5105083Z 3a030ca3f633: Download complete
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:56.5105696Z Digest: sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:56.5106167Z Status: Downloaded newer image for alpine:3.20
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:56.8634528Z 7
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:57.0994260Z 
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:57.0995251Z == can we get a root shell on the NODE via a privileged container through dind? ==
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:57.3953968Z arc-runner-set-sp8tf-runner-lvc5t
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:57.3958842Z NAME="Alpine Linux"
+probe-dind-mode	What can the dind sidecar's privilege reach, from the runner's side	2026-07-23T13:00:57.3959675Z ID=alpine
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	﻿2026-07-23T13:00:57.5869487Z ##[group]Run echo "== internal registry (should be blocked by our NetworkPolicy) =="
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:00:57.5869881Z [36;1mecho "== internal registry (should be blocked by our NetworkPolicy) =="[0m
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:00:57.5870454Z [36;1mcurl -s --max-time 3 http://192.168.122.200:5000/v2/_catalog 2>&1 || echo "blocked/unreachable"[0m
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:00:57.5870780Z [36;1mecho[0m
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:00:57.5871161Z [36;1mecho "== Kubernetes API server (should work via the CiliumNetworkPolicy fix) =="[0m
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:00:57.5871723Z [36;1mcurl -sk --max-time 3 https://kubernetes.default.svc/version 2>&1 || echo "blocked/unreachable"[0m
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:00:57.5880007Z shell: /usr/bin/bash -e {0}
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:00:57.5880294Z ##[endgroup]
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:00:57.5919692Z == internal registry (should be blocked by our NetworkPolicy) ==
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:01:00.6054539Z blocked/unreachable
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:01:00.6054992Z 
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:01:00.6055209Z == Kubernetes API server (should work via the CiliumNetworkPolicy fix) ==
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:01:00.6132725Z {
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:01:00.6133981Z   "major": "1",
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:01:00.6134336Z   "minor": "31",
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:01:00.6134558Z   "gitVersion": "v1.31.14",
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:01:00.6134804Z   "gitCommit": "5e00b99bac504844579ec74886b6cc5c9611ca19",
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:01:00.6135046Z   "gitTreeState": "clean",
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:01:00.6135271Z   "buildDate": "2025-11-11T20:18:11Z",
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:01:00.6135497Z   "goVersion": "go1.24.9",
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:01:00.6135687Z   "compiler": "gc",
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:01:00.6135895Z   "platform": "linux/amd64"
+probe-dind-mode	Cross-namespace network reach (same as the earlier drill)	2026-07-23T13:01:00.6139153Z }
+probe-dind-mode	Complete job	﻿2026-07-23T13:01:00.6195381Z Cleaning up orphan processes

@@ -1,0 +1,141 @@
+build-with-dind	Set up job	﻿2026-07-23T12:56:07.8135834Z Current runner version: '2.336.0'
+build-with-dind	Set up job	2026-07-23T12:56:07.8139696Z Runner name: 'arc-runner-set-sp8tf-runner-flp56'
+build-with-dind	Set up job	2026-07-23T12:56:07.8140509Z Runner group name: 'Default'
+build-with-dind	Set up job	2026-07-23T12:56:07.8141229Z Machine name: 'arc-runner-set-sp8tf-runner-flp56'
+build-with-dind	Set up job	2026-07-23T12:56:07.8142722Z ##[group]GITHUB_TOKEN Permissions
+build-with-dind	Set up job	2026-07-23T12:56:07.8144400Z Contents: read
+build-with-dind	Set up job	2026-07-23T12:56:07.8144684Z Metadata: read
+build-with-dind	Set up job	2026-07-23T12:56:07.8144999Z Packages: read
+build-with-dind	Set up job	2026-07-23T12:56:07.8145255Z ##[endgroup]
+build-with-dind	Set up job	2026-07-23T12:56:07.8146379Z Secret source: Actions
+build-with-dind	Set up job	2026-07-23T12:56:07.8146851Z Prepare workflow directory
+build-with-dind	Set up job	2026-07-23T12:56:07.8399746Z Prepare all required actions
+build-with-dind	Set up job	2026-07-23T12:56:07.8456926Z Complete job name: build-with-dind
+build-with-dind	Confirm docker is available	﻿2026-07-23T12:56:07.8905456Z ##[group]Run docker version
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.8905805Z [36;1mdocker version[0m
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.8906032Z [36;1mecho[0m
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.8906269Z [36;1mecho "== is this container privileged? =="[0m
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.8906578Z [36;1mcat /proc/self/status | grep CapEff[0m
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.8927724Z shell: /usr/bin/bash -e {0}
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.8928215Z ##[endgroup]
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9698439Z Client:
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9699186Z  Version:           29.6.1
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9715084Z  API version:       1.55
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9722208Z  Go version:        go1.26.4
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9744146Z  Git commit:        8900f1d
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9745409Z  Built:             Fri Jun 26 11:39:39 2026
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9754201Z  OS/Arch:           linux/amd64
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9754554Z  Context:           default
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9754736Z 
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9754895Z Server: Docker Engine - Community
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9755172Z  Engine:
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9755400Z   Version:          29.6.2
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9755734Z   API version:      1.55 (minimum version 1.40)
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9756051Z   Go version:       go1.26.5
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9756413Z   Git commit:       3d80467
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9756684Z   Built:            Thu Jul 16 16:14:05 2026
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9756989Z   OS/Arch:          linux/amd64
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9757257Z   Experimental:     false
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9757509Z  containerd:
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9757742Z   Version:          v2.2.6
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9758048Z   GitCommit:        11ce9d5f3c68c941867e82890e93e815c1304f1b
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9758369Z  runc:
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9758593Z   Version:          1.3.6
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9758852Z   GitCommit:        v1.3.6-0-g491b69b
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9759135Z  docker-init:
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9759367Z   Version:          0.19.0
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9759626Z   GitCommit:        de40ad0
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9759796Z 
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9760064Z == is this container privileged? ==
+build-with-dind	Confirm docker is available	2026-07-23T12:56:07.9760494Z CapEff:	0000000000000000
+build-with-dind	Build a real image	﻿2026-07-23T12:56:07.9839331Z ##[group]Run mkdir -p /tmp/build && cd /tmp/build
+build-with-dind	Build a real image	2026-07-23T12:56:07.9839681Z [36;1mmkdir -p /tmp/build && cd /tmp/build[0m
+build-with-dind	Build a real image	2026-07-23T12:56:07.9840081Z [36;1mcat > Dockerfile <<'EOF'[0m
+build-with-dind	Build a real image	2026-07-23T12:56:07.9840356Z [36;1mFROM alpine:3.20[0m
+build-with-dind	Build a real image	2026-07-23T12:56:07.9840642Z [36;1mRUN echo "built via ARC dind mode" > /marker.txt[0m
+build-with-dind	Build a real image	2026-07-23T12:56:07.9840938Z [36;1mCMD cat /marker.txt[0m
+build-with-dind	Build a real image	2026-07-23T12:56:07.9841160Z [36;1mEOF[0m
+build-with-dind	Build a real image	2026-07-23T12:56:07.9841368Z [36;1mdocker build -t dind-test:v1 .[0m
+build-with-dind	Build a real image	2026-07-23T12:56:07.9841629Z [36;1mdocker run --rm dind-test:v1[0m
+build-with-dind	Build a real image	2026-07-23T12:56:07.9855574Z shell: /usr/bin/bash -e {0}
+build-with-dind	Build a real image	2026-07-23T12:56:07.9858482Z ##[endgroup]
+build-with-dind	Build a real image	2026-07-23T12:56:08.3911885Z #0 building with "default" instance using docker driver
+build-with-dind	Build a real image	2026-07-23T12:56:08.3912610Z 
+build-with-dind	Build a real image	2026-07-23T12:56:08.3952074Z #1 [internal] load build definition from Dockerfile
+build-with-dind	Build a real image	2026-07-23T12:56:08.3952590Z #1 transferring dockerfile:
+build-with-dind	Build a real image	2026-07-23T12:56:08.5570289Z #1 transferring dockerfile: 123B done
+build-with-dind	Build a real image	2026-07-23T12:56:08.5571540Z #1 DONE 0.2s
+build-with-dind	Build a real image	2026-07-23T12:56:08.5571910Z 
+build-with-dind	Build a real image	2026-07-23T12:56:08.5572165Z #2 [internal] load metadata for docker.io/library/alpine:3.20
+build-with-dind	Build a real image	2026-07-23T12:56:10.0707477Z #2 DONE 1.7s
+build-with-dind	Build a real image	2026-07-23T12:56:10.2051029Z 
+build-with-dind	Build a real image	2026-07-23T12:56:10.2053325Z #3 [internal] load .dockerignore
+build-with-dind	Build a real image	2026-07-23T12:56:10.2054276Z #3 transferring context:
+build-with-dind	Build a real image	2026-07-23T12:56:10.3469811Z #3 transferring context: 2B done
+build-with-dind	Build a real image	2026-07-23T12:56:10.3471923Z #3 DONE 0.2s
+build-with-dind	Build a real image	2026-07-23T12:56:10.3472278Z 
+build-with-dind	Build a real image	2026-07-23T12:56:10.3473076Z #4 [1/2] FROM docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+build-with-dind	Build a real image	2026-07-23T12:56:10.3475099Z #4 resolve docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc 0.1s done
+build-with-dind	Build a real image	2026-07-23T12:56:10.3476408Z #4 DONE 0.1s
+build-with-dind	Build a real image	2026-07-23T12:56:10.4983999Z 
+build-with-dind	Build a real image	2026-07-23T12:56:10.4984760Z #4 [1/2] FROM docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+build-with-dind	Build a real image	2026-07-23T12:56:10.5003236Z #4 DONE 0.2s
+build-with-dind	Build a real image	2026-07-23T12:56:10.6770459Z 
+build-with-dind	Build a real image	2026-07-23T12:56:10.6772944Z #4 [1/2] FROM docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+build-with-dind	Build a real image	2026-07-23T12:56:10.7253846Z #4 sha256:25f1d6b1951ac8eb3740558fe94cb83d377bdadf95fd9f98b50d2e1b96130471 0B / 3.63MB 0.2s
+build-with-dind	Build a real image	2026-07-23T12:56:10.8416749Z #4 sha256:25f1d6b1951ac8eb3740558fe94cb83d377bdadf95fd9f98b50d2e1b96130471 3.63MB / 3.63MB 0.3s done
+build-with-dind	Build a real image	2026-07-23T12:56:11.0312329Z #4 extracting sha256:25f1d6b1951ac8eb3740558fe94cb83d377bdadf95fd9f98b50d2e1b96130471
+build-with-dind	Build a real image	2026-07-23T12:56:11.1671409Z #4 extracting sha256:25f1d6b1951ac8eb3740558fe94cb83d377bdadf95fd9f98b50d2e1b96130471 0.3s done
+build-with-dind	Build a real image	2026-07-23T12:56:11.1672323Z #4 DONE 0.8s
+build-with-dind	Build a real image	2026-07-23T12:56:11.3312045Z 
+build-with-dind	Build a real image	2026-07-23T12:56:11.3314617Z #5 [2/2] RUN echo "built via ARC dind mode" > /marker.txt
+build-with-dind	Build a real image	2026-07-23T12:56:11.7245032Z #5 DONE 0.5s
+build-with-dind	Build a real image	2026-07-23T12:56:11.9097347Z 
+build-with-dind	Build a real image	2026-07-23T12:56:11.9105142Z #6 exporting to image
+build-with-dind	Build a real image	2026-07-23T12:56:11.9108152Z #6 exporting layers
+build-with-dind	Build a real image	2026-07-23T12:56:12.3096010Z #6 exporting layers 0.6s done
+build-with-dind	Build a real image	2026-07-23T12:56:12.4320127Z #6 exporting manifest sha256:4aee6a8a64815b3b227ecd7844866626d6364edb8fafc3436b437c0a3f782ef4 0.1s done
+build-with-dind	Build a real image	2026-07-23T12:56:12.4321328Z #6 exporting config sha256:d7e25024799e42c2861bd7801b207e20645306636786932ef7bc48d14a77ff42 0.1s done
+build-with-dind	Build a real image	2026-07-23T12:56:12.6514886Z #6 exporting attestation manifest sha256:2df0ca3fb0f44d3120e1ddd95a63204ef5679a135cb947db8e15c15f53a9fbbb 0.1s done
+build-with-dind	Build a real image	2026-07-23T12:56:12.6515725Z #6 exporting manifest list sha256:a9368d025814bf4504b47acd6e52608c9b0192c05df2b63f98f2ef316dfd2d98
+build-with-dind	Build a real image	2026-07-23T12:56:12.7862638Z #6 exporting manifest list sha256:a9368d025814bf4504b47acd6e52608c9b0192c05df2b63f98f2ef316dfd2d98 0.1s done
+build-with-dind	Build a real image	2026-07-23T12:56:12.7865995Z #6 naming to docker.io/library/dind-test:v1 done
+build-with-dind	Build a real image	2026-07-23T12:56:12.7867577Z #6 unpacking to docker.io/library/dind-test:v1 0.1s done
+build-with-dind	Build a real image	2026-07-23T12:56:12.9548972Z #6 DONE 1.0s
+build-with-dind	Build a real image	2026-07-23T12:56:13.1231541Z 
+build-with-dind	Build a real image	2026-07-23T12:56:13.1324872Z  [33m1 warning found (use docker --debug to expand):
+build-with-dind	Build a real image	2026-07-23T12:56:13.1325906Z [0m - JSONArgsRecommended: JSON arguments recommended for CMD to prevent unintended behavior related to OS signals (line 3)
+build-with-dind	Build a real image	2026-07-23T12:56:13.5094132Z built via ARC dind mode
+build-with-dind	Check for host escape via the dind sidecar	﻿2026-07-23T12:56:13.7124394Z ##[group]Run echo "== can this dind daemon see/reach the real host's docker.sock? =="
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7124890Z [36;1mecho "== can this dind daemon see/reach the real host's docker.sock? =="[0m
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7125189Z [36;1mls -la /var/run/docker.sock[0m
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7125400Z [36;1mecho[0m
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7125666Z [36;1mecho "== does docker info reveal anything about the underlying node? =="[0m
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7125944Z [36;1mdocker info 2>&1 | head -20[0m
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7130748Z shell: /usr/bin/bash -e {0}
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7130885Z ##[endgroup]
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7165731Z == can this dind daemon see/reach the real host's docker.sock? ==
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7184204Z srw-rw---- 1 root docker 0 Jul 23 12:55 /var/run/docker.sock
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7228091Z 
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7244773Z == does docker info reveal anything about the underlying node? ==
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7455316Z Client:
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7455505Z  Version:    29.6.1
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7455620Z  Context:    default
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7456061Z  Debug Mode: false
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7456162Z  Plugins:
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7456263Z   buildx: Docker Buildx (Docker Inc.)
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7456392Z     Version:  v0.35.0
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7456528Z     Path:     /usr/local/lib/docker/cli-plugins/docker-buildx
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7456642Z 
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7456704Z Server:
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7456792Z  Containers: 0
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7456892Z   Running: 0
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7457003Z   Paused: 0
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7457090Z   Stopped: 0
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7457178Z  Images: 1
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7457283Z  Server Version: 29.6.2
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7457393Z  Storage Driver: overlayfs
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7457544Z   driver-type: io.containerd.snapshotter.v1
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7457843Z  Logging Driver: json-file
+build-with-dind	Check for host escape via the dind sidecar	2026-07-23T12:56:13.7462898Z  Cgroup Driver: cgroupfs
+build-with-dind	Complete job	﻿2026-07-23T12:56:13.7531883Z Cleaning up orphan processes
