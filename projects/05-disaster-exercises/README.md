@@ -229,6 +229,29 @@ worth distinguishing "pods this drill broke" from "pre-existing mess
 from prior drills" rather than attributing all observed errors to
 whichever drill happens to be running when you look.
 
+**Follow-up: this stopped being a simulated drill and became a real,
+recurring problem.** Across later projects in this roadmap (Project 6's
+`dind`/`kubernetes` containerMode tests, Project 4's later `kata-fc`
+follow-up), the `isolated-ci` workers hit genuine `DiskPressure` — not
+induced, actual exhaustion — three separate times as the accumulated CI
+stack (Cilium, MetalLB, ArgoCD, cert-manager, ARC, Kata's images/kernels/
+Firecracker binaries, the registry) grew past what the original 20GB
+qcow2 disks could hold. Restarting kubelet each time (the workaround
+above) treated the symptom repeatedly rather than the cause. Fixed at the
+root instead: live-resized both workers' qcow2 disks to 40GB
+(`virsh blockresize <vm> vda 40G`, no VM downtime needed since libvirt
+supports online block resize), then grew the in-guest partition and
+filesystem (`growpart /dev/vda 1 && resize2fs /dev/vda1`, both online too).
+Real usage dropped from 76-81% to ~37-39%, and this time `DiskPressure`
+cleared **on its own** — no kubelet restart needed — once genuine disk
+pressure was actually relieved, which is a useful data point on the
+"does the condition clear promptly" question left open above: it does,
+when the fix is real and total capacity (not just used space) increases.
+Lesson for the roadmap: a 20GB disk was fine for Project 3's original
+scope but was always going to be too small once Projects 4 and 6 layered
+Kata and ARC on top — worth sizing new lab VMs closer to 40GB from the
+start rather than growing them reactively under pressure.
+
 ### Drill 3: simulated network link failure
 
 Rather than dropping a veth/bridge globally (all VMs share the single

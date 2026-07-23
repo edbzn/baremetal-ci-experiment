@@ -207,3 +207,81 @@ anything I/O-bound), and ~300MB fixed memory + 250m fixed CPU per pod
 regardless of workload size. None of these costs are prohibitive for a
 small number of genuinely high-risk jobs; all of them compound badly if
 applied by default to every CI job.
+
+### Follow-up: swapping the hypervisor underneath — `kata-fc` (Firecracker)
+
+Kata's `RuntimeClass` abstraction means the hypervisor is a config choice,
+not a re-architecture: `kata-deploy` already installs the `kata-fc`
+shim/RuntimeClass alongside `kata-qemu` in the same Helm chart. The
+question worth answering with real numbers rather than assumption: does
+swapping QEMU for Firecracker's much smaller virtual device model
+(~5 virtio devices vs QEMU's broad emulated hardware) actually pay off in
+CI-relevant terms, and what does it cost to get working.
+
+**Real gap found and fixed: `kata-fc` needs a devicemapper snapshotter,
+which kata-deploy does not provision.** Scheduling a `kata-fc` pod failed
+immediately with `FailedCreatePodSandBox: ... snapshotter devmapper was
+not found: not found`. Root cause: Firecracker (unlike QEMU) needs its
+guest rootfs backed by a real block device, not overlayfs, so kata-deploy
+configures containerd's `kata-fc` runtime with `snapshotter = "devmapper"`
+— but only writes the containerd-side reference, not an actual pool.
+Containerd's own `devmapper` plugin was present but reported `skip`
+(config present, `pool_name`/`root_path` empty). Fixed by hand on both
+`isolated-ci` workers: created a loopback-backed thin-pool
+(`dmsetup create containerd-pool` over two sparse files, data + metadata,
+matching containerd's own documented devmapper setup), then set
+`root_path`/`pool_name`/`base_image_size` in `/etc/containerd/config.toml`
+and restarted containerd (`ctr plugins ls` then shows `devmapper ... ok`).
+This is a real, generally-applicable gap for anyone turning on `kata-fc`
+from a stock kata-deploy install, not something specific to this cluster.
+
+**Verified genuinely running on Firecracker, not just scheduled**: same
+two-check pattern as `kata-qemu` — guest kernel `6.18.35` differs from the
+host's `6.8.0-134-generic`, and a real `/firecracker --id ... --config-file
+/fcConfig.json` process appears on the host node backing the pod
+(`containerd-shim-kata-v2` bridging it into CRI, same as `kata-qemu`, but
+notably **no `virtiofsd` processes** — Firecracker's devmapper-backed block
+device doesn't need virtio-fs at all).
+
+| Dimension | runc | `kata-qemu` | `kata-fc` | vs `kata-qemu` |
+|---|---|---|---|---|
+| Pod cold-start (creation→Ready, 5-run avg) | ~0.90s | ~3.2s | ~3.17s | **~roughly even** |
+| Host-side memory overhead per pod | ~1MB | ~314MB (QEMU ~264MB + shim ~45MB + 2×virtiofsd ~6MB) | ~197MB (firecracker ~152.7MB + shim ~44.5MB, no virtiofsd) | **~37% less** |
+| Disk write throughput (200MB `dd`) | 3.8 GB/s | 116 MB/s | 672 MB/s | **~5.8x faster** |
+| Disk read throughput (200MB `dd`, cold) | — | — | 144.5 MB/s | (new measurement, not taken for `kata-qemu`) |
+| Disk read throughput (200MB `dd`, cached) | 20.9 GB/s | 2.4 GB/s | ~20.2 GB/s | **~8.4x faster, matches runc** |
+| Network throughput (iperf3, same-node) | 67.5 Gbit/s | 3.8 Gbit/s | 3.49 Gbit/s | **~roughly even** |
+
+**Startup and network are a wash** — both are dominated by shared costs
+(guest kernel boot time, virtio-net's path through the guest), not by the
+device-model difference Firecracker is actually built to minimize.
+
+**Disk and memory are where Firecracker's design pays off, and by a lot**:
+the devmapper block-device path replaces virtio-fs's translation overhead
+entirely, and cached reads land within measurement noise of bare
+`runc` (~20.2 GB/s vs 20.9 GB/s) — a dramatically better result than
+`kata-qemu`'s ~9x cached-read regression. Memory drops too, simply from
+dropping the `virtiofsd` processes and QEMU's heavier device emulation in
+favor of Firecracker's minimal VMM.
+
+**Caveat, not yet measured**: this comparison used the same simple
+single-file `dd` workload as the `kata-qemu` benchmark — real CI I/O
+patterns (many small files, concurrent git checkouts, layer extraction)
+could behave differently under devmapper's thin-provisioning than under
+virtio-fs's pass-through-to-host-filesystem model. The devmapper pool
+size here (10GB data / 512MB metadata over loopback) is also a lab-scale
+setup, not tuned for production throughput or resilience (loopback files
+add a layer of indirection a real backing block device wouldn't have).
+
+**Revised takeaway**: for CI job classes that are I/O-heavy (checkout,
+dependency install, layer export — flagged in the `kata-qemu` findings
+above as the most consequential regression), `kata-fc` is a meaningfully
+better default than `kata-qemu` *if* the devmapper snapshotter gap is
+fixed first — it keeps Kata's genuine isolation boundary while
+removing most of the disk-throughput tax that made `kata-qemu` a hard
+sell for I/O-bound jobs specifically. It does not change the
+startup/memory/network isolation-tax story in any dramatic way, so the
+underlying "measure before defaulting to more isolation" conclusion from
+the `kata-qemu` section still stands — this is an argument for *which*
+Kata hypervisor to pick once you've decided isolation is warranted, not
+an argument that isolation itself is now free.
