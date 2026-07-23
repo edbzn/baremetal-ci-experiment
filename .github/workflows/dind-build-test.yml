@@ -1,0 +1,34 @@
+name: DinD image build test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-with-dind:
+    runs-on: arc-runner-set
+    steps:
+      - name: Confirm docker is available
+        run: |
+          docker version
+          echo
+          echo "== is this container privileged? =="
+          cat /proc/self/status | grep CapEff
+
+      - name: Build a real image
+        run: |
+          mkdir -p /tmp/build && cd /tmp/build
+          cat > Dockerfile <<'EOF'
+          FROM alpine:3.20
+          RUN echo "built via ARC dind mode" > /marker.txt
+          CMD cat /marker.txt
+          EOF
+          docker build -t dind-test:v1 .
+          docker run --rm dind-test:v1
+
+      - name: Check for host escape via the dind sidecar
+        run: |
+          echo "== can this dind daemon see/reach the real host's docker.sock? =="
+          ls -la /var/run/docker.sock
+          echo
+          echo "== does docker info reveal anything about the underlying node? =="
+          docker info 2>&1 | head -20
