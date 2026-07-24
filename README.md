@@ -40,10 +40,10 @@ host reboot.
 - **LoadBalancer**: MetalLB, L2 mode.
 - **Storage**: `rancher/local-path-provisioner` (dynamic `StorageClass`),
   plus a plain `registry:2` internal container registry
-  (`192.168.122.200:5000`, insecure/plain-HTTP). **No longer
-  `emptyDir`** — backed by a 10Gi `local-path` PVC as of this session;
-  verified surviving a real pod deletion (previously lost its data at
-  least 3 separate times across this project's history).
+  (`192.168.122.200:5000`, insecure/plain-HTTP), backed by a 10Gi
+  `local-path` PVC — not `emptyDir` (previously lost its data at least
+  3 separate times across this project's history; verified surviving a
+  real pod deletion after the fix).
 - **Metrics**: `metrics-server`, `--kubelet-insecure-tls` (stock
   kubeadm's self-signed kubelet serving certs have no IP SANs — the
   correct fix, `serverTLSBootstrap` + a CSR auto-approver, is real
