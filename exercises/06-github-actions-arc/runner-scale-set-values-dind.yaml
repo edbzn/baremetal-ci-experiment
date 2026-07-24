@@ -9,6 +9,7 @@ containerMode:
 
 template:
   spec:
+    runtimeClassName: kata-fc
     nodeSelector:
       node-role: isolated-ci
     containers:

@@ -176,3 +176,35 @@ component).
   `rancher/local-path-provisioner` to unblock it — worth folding back
   into Project 3's own setup notes as a real, generally-useful gap, not
   something specific to this test.
+
+### Follow-up: CI runner pods on `kata-fc` (Firecracker) instead of `runc`
+
+Both runner-scale-sets (`arc-runner-set`, plain mode, and
+`arc-runner-set-dind`) were switched from the default `runc` to
+`runtimeClassName: kata-fc` in their pod template (a one-line addition
+in each `runner-scale-set-values*.yaml`, then a `helm upgrade`) —
+answering the earlier-flagged "does DinD's convenience become safe for
+untrusted build jobs inside a Kata microVM" thread from Project 1/4,
+and giving every real CI job the Firecracker-backed isolation benchmarked
+in Project 4 rather than leaving it as a benchmark-only exercise.
+
+Verified genuinely running as microVMs, the same two-signal check used
+throughout Project 4: while a real dispatched job's runner pod was
+`Running` on `ci-worker2`, the host process list showed a real
+`/firecracker --id ... --config-file /fcConfig.json` process plus a
+`containerd-shim-kata-v2` bridging it into containerd/CRI — not just a
+`runtimeClassName` label on the pod spec. Both scale-sets' node
+selector (`node-role: isolated-ci`) already matched `kata-fc`'s own
+`scheduling.nodeSelector` (`katacontainers.io/kata-runtime: "true"`,
+set automatically by kata-deploy), so no scheduling changes were
+needed beyond the RuntimeClass itself.
+
+Dispatched workflows against both scale-sets afterward and confirmed
+`conclusion: success` on each — the switch is a real, working default
+now, not just a proof of concept. Real, not-yet-measured cost: every CI
+job now pays Kata's ~3.17s cold-start and ~197MB memory overhead
+(Project 4's measured `kata-fc` numbers) on top of the runner
+container's own startup, which matters more here than in the original
+benchmark since ARC creates a fresh ephemeral pod per job by design —
+worth watching if job volume ever grows enough for that per-job tax to
+add up.

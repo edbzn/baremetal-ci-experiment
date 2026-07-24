@@ -45,11 +45,15 @@ host reboot.
 - **GitOps**: ArgoCD, auto-syncing [`cluster/gitops-demo/`](cluster/gitops-demo/)
   from this repo's `main` branch (`automated: {prune: true, selfHeal:
   true}` — pushes here take effect on the cluster automatically).
-- **CI**: GitHub Actions Runner Controller (`gha-runner-scale-set`),
-  ephemeral runner pods on `isolated-ci` nodes, scale-to-zero
-  (`minRunners: 0`). Auth via a narrowly-scoped GitHub App.
-- **Isolation**: Kata Containers (`kata-deploy`), both `kata-qemu` and
+- **CI**: GitHub Actions Runner Controller, two runner-scale-set
+  releases side by side — `arc-runner-set` (plain containerMode) and
+  `arc-runner-set-dind` (dind mode) — both ephemeral, scale-to-zero
+  (`minRunners: 0`) on `isolated-ci` nodes. Auth via a narrowly-scoped
+  GitHub App.
+- **Isolation**: Kata Containers (`kata-deploy`), `kata-qemu` and
   `kata-fc` (Firecracker) RuntimeClasses available and benchmarked.
+  **Both ARC runner-scale-sets run their pods under `kata-fc`** —
+  every real CI job gets microVM isolation, not just benchmark pods.
 - **TLS/webhooks**: cert-manager (a dependency of the ARC controller's
   own internal webhook, unrelated to GitHub webhooks).
 
