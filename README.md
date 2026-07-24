@@ -33,6 +33,43 @@ state, not source). IPs are static via libvirt DHCP host reservations
 pinned to these, so a stale DHCP lease will break the cluster after a
 host reboot.
 
+## Architecture
+
+```mermaid
+flowchart TB
+    DEV["You<br/>kubectl/helm + git push"]
+    GH["github.com<br/>(outbound long-poll, no inbound ingress)"]
+
+    LB["k8s-lb (HAProxy)<br/>:16443"]
+    CP["Control plane<br/>3-node etcd quorum"]
+    W["isolated-ci workers<br/>every job runs in a kata-fc microVM"]
+
+    UIS["MetalLB UIs<br/>registry · ArgoCD · Headlamp · Hubble UI"]
+    ARC["ARC runner-sets<br/>(plain + dind)"]
+    GITOPS["gitops-demo<br/>(ArgoCD auto-sync)"]
+
+    DEV --> LB
+    DEV --> UIS
+    DEV -->|git push| GH
+
+    LB --> CP
+    CP --> W
+    CP --> UIS
+
+    W --> ARC
+    GH <--> ARC
+
+    UIS --> GITOPS
+```
+
+Every arrow above is a real, currently-live path: pushes to this
+repo's `main` branch reach ArgoCD via its own poll of GitHub, GitHub
+Actions jobs reach ARC's listener via an outbound long-poll (no
+inbound ingress exists on this cluster at all), and every CI job pod
+now runs under `kata-fc` microVM isolation rather than plain `runc` —
+see [What's installed](#whats-installed) below for the full detail
+behind each box.
+
 ## What's installed
 
 - **CNI**: Cilium (eBPF datapath, `kube-proxy` still in place alongside
