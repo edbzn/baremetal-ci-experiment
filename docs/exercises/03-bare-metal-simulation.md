@@ -80,7 +80,7 @@ Kubernetes-aware, and nodes can die" property without needing hardware yet.
 - Ubuntu 24.04 (Noble) cloud image + `cloud-localds`-generated NoCloud
   seed ISOs per VM, each VM's disk a qcow2 overlay against one shared base
   image (`-b`/`-F` backing file) rather than 3 full copies.
-- `scripts/provision-vms.sh <names...>`: templates cloud-init user-data
+- `cluster/scripts/provision-vms.sh <names...>`: templates cloud-init user-data
   per hostname, injects the host's real SSH pubkey, creates the overlay
   disk + seed ISO, and `virt-install --import`s each VM non-interactively.
 - cloud-init handles the kubeadm prerequisites proactively (swap off,
@@ -96,7 +96,7 @@ Kubernetes-aware, and nodes can die" property without needing hardware yet.
 - Installed containerd (with `SystemdCgroup = true` — required for
   kubelet's cgroup driver to match) + `kubeadm`/`kubelet`/`kubectl`
   v1.31 from the official Kubernetes apt repo on all 3 nodes via a shared
-  script (`scripts/install-k8s-prereqs.sh`), run over SSH.
+  script (`cluster/scripts/install-k8s-prereqs.sh`), run over SSH.
 - **`kubeadm init` preflight failures, first attempt** — two real gaps
   cloud-init hadn't covered:
   - `ERROR FileExisting-conntrack`: `conntrack` package wasn't installed.
@@ -120,7 +120,7 @@ Kubernetes-aware, and nodes can die" property without needing hardware yet.
   standing in for nodes (the key structural difference from Project 2's
   kind cluster).
 - Fetched `admin.conf` from the control-plane VM to
-  `projects/03-bare-metal-simulation/.kube/config` (`.gitignore`d — it's a
+  `cluster/.kube/config` (`.gitignore`d — it's a
   cluster-admin credential) so `kubectl`/`helm` on the host machine manage
   this cluster directly via `KUBECONFIG=.../.kube/config`.
 
@@ -239,7 +239,7 @@ silently ignores insecure-HTTP `certs.d` overrides:**
   restarted containerd, and confirmed: a real pod (`kubectl run
   ...--image=192.168.122.200:5000/...`) pulled and ran successfully on
   all 3 nodes afterward.
-- Packaged as `scripts/configure-insecure-registry.sh <registry-host:port>
+- Packaged as `cluster/scripts/configure-insecure-registry.sh <registry-host:port>
   <node-ip>...` for reuse — handles both the `hosts.toml` generation and
   the `use_local_image_pull` fix (including de-duplicating the key if a
   `= false` default already exists elsewhere in `config.toml`, which
@@ -313,7 +313,7 @@ rather than just "it came back up":**
   still `Running`, and the registry from step 5 still reachable with its
   previously pushed image (`alpine-test`) still listed.
 
-**Packaged for reuse**: `scripts/etcd-snapshot.sh <control-plane-ip>` —
+**Packaged for reuse**: `cluster/scripts/etcd-snapshot.sh <control-plane-ip>` —
 takes the snapshot, fixes ownership, copies it off-node, cleans up the
 node-local temp file. (The restore procedure was kept manual/documented
 here rather than scripted, since a real restore should never be a blind
@@ -355,7 +355,7 @@ application state — this step introduces that second half concretely.
   step-5 *cluster-internal* registry (`192.168.122.200:5000`) instead, and
   pointed an Argo CD `Application` at
   `https://github.com/edbzn/baremetal-ci-experiment.git`,
-  path `projects/03-bare-metal-simulation/gitops-demo`, with
+  path `cluster/gitops-demo`, with
   `syncPolicy.automated: {prune: true, selfHeal: true}`.
 
 **Verified both core GitOps guarantees concretely, not just installed the
@@ -429,7 +429,7 @@ rather than a no-op.
    for you when a node is truly gone (as opposed to temporarily
    unreachable). This is what actually triggers prompt cleanup of the
    remaining stale pod records, rather than waiting out timers.
-4. Provisioned a **fresh** VM (`scripts/provision-vms.sh ci-worker1` —
+4. Provisioned a **fresh** VM (`cluster/scripts/provision-vms.sh ci-worker1` —
    same script as step 1, proving it's genuinely reusable for this exact
    purpose) — new disk, new cloud-init run, new DHCP lease
    (`192.168.122.102`, different from the destroyed VM's `.236`).

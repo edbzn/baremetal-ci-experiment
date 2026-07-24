@@ -1,6 +1,6 @@
-projects/01-local-container-ci/artifacts/
-projects/02-kubernetes-ci/queue/*.task
-projects/02-kubernetes-ci/queue/.processed/
-projects/03-bare-metal-simulation/.kube/
-projects/03-bare-metal-simulation/vm-images/
-projects/03-bare-metal-simulation/etcd-backups/
+exercises/01-local-container-ci/artifacts/
+exercises/02-kubernetes-ci/queue/*.task
+exercises/02-kubernetes-ci/queue/.processed/
+cluster/.kube/
+cluster/vm-images/
+cluster/etcd-backups/

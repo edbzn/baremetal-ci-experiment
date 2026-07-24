@@ -48,7 +48,7 @@ needs etcd quorum (≥3 members) to be meaningful. Expanded it here before
 running that drill:
 
 - Provisioned 2 more VMs (`ci-cp2`, `ci-cp3`) with the same
-  `scripts/provision-vms.sh`/`install-k8s-prereqs.sh` from Project 3 —
+  `cluster/scripts/provision-vms.sh`/`install-k8s-prereqs.sh` from Project 3 —
   both reused without modification.
 - **Real retrofit problem, not anticipated going in**: the original
   single-CP cluster was never `kubeadm init`ed with a

@@ -15,28 +15,30 @@ the stronger boundary; and never trust "should work" — verify.
 ## Layout
 
 ```
-projects/
-  01-local-container-ci/     rootless BuildKit + registry, DinD/DooD security comparison
-  02-kubernetes-ci/           kind cluster: scheduling, RBAC, NetworkPolicy, metrics
-  03-bare-metal-simulation/   kubeadm on real libvirt VMs, Cilium, MetalLB, GitOps
-  04-kata-microvms/           Kata Containers RuntimeClass, measured vs. runc
-  05-disaster-exercises/      HA control plane + destructive chaos drills
-  06-github-actions-arc/      real GitHub Actions CI on the cluster + a security drill
+cluster/                       the final k8s cluster code — kubeadm on real libvirt
+                                VMs, Cilium, MetalLB, GitOps, ArgoCD Application (Project 3)
+exercises/
+  01-local-container-ci/       rootless BuildKit + registry, DinD/DooD security comparison
+  02-kubernetes-ci/            kind cluster: scheduling, RBAC, NetworkPolicy, metrics
+  04-kata-microvms/            Kata Containers RuntimeClass, measured vs. runc
+  05-disaster-exercises/       HA control plane + destructive chaos drills
+  06-github-actions-arc/       real GitHub Actions CI on the cluster + a security drill
 docs/
-  concepts.md                 the "can you explain X" checkpoint questions
-  decisions.md                lightweight ADRs for non-obvious choices made along the way
+  concepts.md                  the "can you explain X" checkpoint questions
+  decisions.md                  lightweight ADRs for non-obvious choices made along the way
+  exercises/                   full write-up per project — findings, benchmarks, evidence
 ```
 
 ## Project 1 — Local container CI
 
-[`projects/01-local-container-ci/`](projects/01-local-container-ci/README.md)
+[`exercises/01-local-container-ci/`](docs/exercises/01-local-container-ci.md)
 
 Rootless BuildKit + a local OCI registry, wired into a minimal CI runner
-script ([`scripts/run-ci-job.sh`](projects/01-local-container-ci/scripts/run-ci-job.sh)):
+script ([`scripts/run-ci-job.sh`](exercises/01-local-container-ci/scripts/run-ci-job.sh)):
 build → registry-cache import/export → locked-down smoke test → artifact
 record. Then a deliberate "break it" pass (disk fill, OOM, privileged vs.
 default capabilities) and a side-by-side [DinD vs. DooD vs. rootless
-BuildKit security comparison](projects/01-local-container-ci/dind-experiment/README.md).
+BuildKit security comparison](exercises/01-local-container-ci/dind-experiment/README.md).
 
 **Know this:**
 - Rootless BuildKit needs a genuinely relaxed `kernel.apparmor_restrict_unprivileged_userns`
@@ -53,14 +55,14 @@ BuildKit security comparison](projects/01-local-container-ci/dind-experiment/REA
 
 ## Project 2 — Conventional Kubernetes CI
 
-[`projects/02-kubernetes-ci/`](projects/02-kubernetes-ci/README.md)
+[`exercises/02-kubernetes-ci/`](docs/exercises/02-kubernetes-ci.md)
 
 A 3-node `kind` cluster wired to Project 1's registry. Works through
 Pods/Deployments/Jobs/CronJobs, scheduling, Services/DNS, RBAC,
 NetworkPolicy, taints/tolerations, Pod Security admission, a
-[queue-driven runner controller](projects/02-kubernetes-ci/scripts/runner-controller.sh),
+[queue-driven runner controller](exercises/02-kubernetes-ci/scripts/runner-controller.sh),
 a default-deny egress policy, and Prometheus/Grafana CI metrics
-([`monitoring-values.yaml`](projects/02-kubernetes-ci/monitoring-values.yaml)).
+([`monitoring-values.yaml`](exercises/02-kubernetes-ci/monitoring-values.yaml)).
 
 **Know this:**
 - **kindnet's NetworkPolicy engine tracks live pod IPs and only enforces
@@ -75,16 +77,16 @@ a default-deny egress policy, and Prometheus/Grafana CI metrics
 
 ## Project 3 — Bare-metal simulation (real VMs, not containers)
 
-[`projects/03-bare-metal-simulation/`](projects/03-bare-metal-simulation/README.md)
+[`cluster/`](docs/exercises/03-bare-metal-simulation.md)
 
 A real `kubeadm` cluster on 3 (later 5, see Project 5) libvirt/KVM VMs —
-provisioned via [`scripts/provision-vms.sh`](projects/03-bare-metal-simulation/scripts/provision-vms.sh) +
-[cloud-init](projects/03-bare-metal-simulation/cloud-init/user-data.tmpl.yaml).
-Adds Cilium ([`cilium-values.yaml`](projects/03-bare-metal-simulation/cilium-values.yaml)),
-MetalLB L2 mode ([`metallb-config.yaml`](projects/03-bare-metal-simulation/metallb-config.yaml)),
-an internal container registry ([`registry.yaml`](projects/03-bare-metal-simulation/registry.yaml)),
+provisioned via [`scripts/provision-vms.sh`](cluster/scripts/provision-vms.sh) +
+[cloud-init](cluster/cloud-init/user-data.tmpl.yaml).
+Adds Cilium ([`cilium-values.yaml`](cluster/cilium-values.yaml)),
+MetalLB L2 mode ([`metallb-config.yaml`](cluster/metallb-config.yaml)),
+an internal container registry ([`registry.yaml`](cluster/registry.yaml)),
 a real etcd snapshot/restore drill, and Argo CD GitOps
-([`argocd-application.yaml`](projects/03-bare-metal-simulation/argocd-application.yaml)).
+([`argocd-application.yaml`](cluster/argocd-application.yaml)).
 
 **Know this:**
 - **containerd 2.x's CRI "transfer service" pull path silently ignores
@@ -92,7 +94,7 @@ a real etcd snapshot/restore drill, and Argo CD GitOps
   directly work fine, but kubelet/`crictl` pulls keep forcing HTTPS
   regardless. Fix: `use_local_image_pull = true` under
   `[plugins.'io.containerd.cri.v1.images']`, reverting to the classic
-  resolver (see [`scripts/configure-insecure-registry.sh`](projects/03-bare-metal-simulation/scripts/configure-insecure-registry.sh)).
+  resolver (see [`scripts/configure-insecure-registry.sh`](cluster/scripts/configure-insecure-registry.sh)).
   Most existing guidance predates containerd 2.x and will hit this
   silently.
 - Killing a real node (`virsh destroy` + `undefine`) and replacing it is
@@ -106,7 +108,7 @@ a real etcd snapshot/restore drill, and Argo CD GitOps
 
 ## Project 4 — Kata Containers microVMs
 
-[`projects/04-kata-microvms/`](projects/04-kata-microvms/README.md)
+[`exercises/04-kata-microvms/`](docs/exercises/04-kata-microvms.md)
 
 Kata installed via the current Helm-based `kata-deploy` method (the
 roadmap's original `kubectl apply` DaemonSet example no longer exists —
@@ -114,7 +116,7 @@ Kata's install process changed). Verified genuine VM isolation (a
 `kata-qemu` pod reports a completely different kernel than its host node,
 and the host process list shows a real `qemu-system-x86_64 -machine
 q35,accel=kvm` process), then benchmarked against `runc` with a
-[startup-time script](projects/04-kata-microvms/benchmarks/measure-startup.sh).
+[startup-time script](exercises/04-kata-microvms/benchmarks/measure-startup.sh).
 
 **Know this — the actual measured cost, not an assumption:**
 
@@ -168,7 +170,7 @@ all), then re-ran the same benchmark comparison:
 
 ## Project 5 — Disaster exercises
 
-[`projects/05-disaster-exercises/`](projects/05-disaster-exercises/README.md)
+[`exercises/05-disaster-exercises/`](docs/exercises/05-disaster-exercises.md)
 
 Expanded Project 3's single-control-plane cluster to a genuine 3-node
 etcd quorum (HAProxy LB, live cert regeneration, `kubeadm-config`
@@ -196,7 +198,7 @@ hypervisor level, rotate a ServiceAccount credential live, and contain a
 
 ## Project 6 — Real GitHub Actions CI on the cluster
 
-[`projects/06-github-actions-arc/`](projects/06-github-actions-arc/README.md)
+[`exercises/06-github-actions-arc/`](docs/exercises/06-github-actions-arc.md)
 
 Wires a real GitHub repo to Actions Runner Controller (ARC) running on
 Project 3's cluster, authenticated via a narrowly-scoped GitHub App (no
@@ -207,7 +209,7 @@ cluster nodes, not a hosted runner. See the live workflows:
 [`self-hosted-ci.yml`](.github/workflows/self-hosted-ci.yml) and
 [`security-sandbox-drill.yml`](.github/workflows/security-sandbox-drill.yml).
 
-Also ran a [security sandbox-escape drill](projects/06-github-actions-arc/security-drill/README.md) —
+Also ran a [security sandbox-escape drill](docs/exercises/06-github-actions-arc-security-drill.md) —
 a real CI job attempting host file access, container-runtime socket
 access, privilege escalation, process-namespace escape, RBAC abuse, and
 cross-namespace network reach.
@@ -225,7 +227,7 @@ cross-namespace network reach.
 - **But the CI runner could freely reach the internal container
   registry and any other cluster service** — no NetworkPolicy protected
   it by default. Fixed with default-deny egress
-  ([`arc-runner-egress-policy.yaml`](projects/06-github-actions-arc/security-drill/arc-runner-egress-policy.yaml)).
+  ([`arc-runner-egress-policy.yaml`](exercises/06-github-actions-arc/security-drill/arc-runner-egress-policy.yaml)).
 - **Getting that fix right took two tries**: a plain `NetworkPolicy
   ipBlock` rule for the Kubernetes API server's ClusterIP silently failed
   on Cilium — CIDR selectors match traffic *after* Cilium's own
@@ -236,7 +238,7 @@ cross-namespace network reach.
   afterward with the registry cleanly blocked in 3 seconds while the API
   server and internet access stayed intact.
 - **All three `containerMode` options measured, not assumed** (also in
-  the [security drill](projects/06-github-actions-arc/security-drill/README.md)):
+  the [security drill](docs/exercises/06-github-actions-arc-security-drill.md)):
   `dind` mode gets `docker build` for free via a sidecar that's
   hardcoded `privileged: true` with no way to reduce it — a real
   (user-approved) `--privileged --pid=host` + `nsenter -t 1` escape
@@ -258,6 +260,8 @@ cross-namespace network reach.
   VM-vs-container security), as a running self-check.
 - [`docs/decisions.md`](docs/decisions.md) — lightweight ADRs for every
   non-obvious call made along the way, each with *why* and *revisit if*.
+- [`docs/exercises/`](docs/exercises/) — the full per-project write-ups
+  (findings, benchmarks, evidence) linked throughout this README.
 
 ## Threads worth following up on
 

@@ -13,7 +13,7 @@ spec:
   source:
     repoURL: https://github.com/edbzn/baremetal-ci-experiment.git
     targetRevision: main
-    path: projects/03-bare-metal-simulation/gitops-demo
+    path: cluster/gitops-demo
   destination:
     server: https://kubernetes.default.svc
     namespace: gitops-demo

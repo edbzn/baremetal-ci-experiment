@@ -161,7 +161,7 @@ component).
   reliably, or does forcibly killing/replacing a runner pod interfere
   with graceful cancellation specifically?
 - ~~`containerMode` was left at its simplest setting~~ — **now explored**:
-  see [`security-drill/README.md`](security-drill/README.md) for a full
+  see [`06-github-actions-arc-security-drill.md`](06-github-actions-arc-security-drill.md) for a full
   measured comparison of plain/`dind`/`kubernetes` modes, including a
   real (approved) host-escape probe against `dind` mode's privileged
   sidecar, and a real failed-connection confirmation that `kubernetes`
