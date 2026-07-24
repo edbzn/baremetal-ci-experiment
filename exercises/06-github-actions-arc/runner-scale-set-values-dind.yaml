@@ -18,3 +18,23 @@ template:
       - name: runner
         image: ghcr.io/actions/actions-runner:latest
         command: ["/home/runner/run.sh"]
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            memory: "512Mi"
+    # The chart's auto-generated `dind` sidecar (containerMode.type: dind)
+    # has NO supported way to receive resources via values.yaml as of
+    # chart 0.14.2 - confirmed via chart source
+    # (charts/gha-runner-scale-set/templates/autoscalingrunnerset.yaml):
+    # only the `runner` container gets field-level override merging: a
+    # `template.spec.containers`/`initContainers` entry named `dind` is
+    # appended verbatim alongside the chart's own hardcoded `dind` entry
+    # rather than merged, causing "duplicate entries for key
+    # [name=\"dind\"]" from server-side apply. Open upstream bug/PR:
+    # actions/actions-runner-controller#4567 (unmerged as of this
+    # writing). Worked around instead with a namespace-level LimitRange
+    # (arc-runners-limitrange.yaml) that sets a default request/limit
+    # for every container in this namespace without needing per-chart
+    # support - see that file for the actual numbers.

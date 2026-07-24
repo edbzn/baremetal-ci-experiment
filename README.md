@@ -53,10 +53,14 @@ host reboot.
   from this repo's `main` branch (`automated: {prune: true, selfHeal:
   true}` — pushes here take effect on the cluster automatically).
 - **CI**: GitHub Actions Runner Controller, two runner-scale-set
-  releases side by side — `arc-runner-set` (plain containerMode) and
-  `arc-runner-set-dind` (dind mode) — both ephemeral, scale-to-zero
-  (`minRunners: 0`) on `isolated-ci` nodes. Auth via a narrowly-scoped
-  GitHub App.
+  releases side by side — `arc-runner-set` (plain containerMode,
+  `runner`: 500m/1Gi) and `arc-runner-set-dind` (dind mode, `runner`:
+  500m/512Mi + a namespace-wide `LimitRange` covering the chart's
+  auto-generated `dind`/`init-dind-externals` containers at 500m/1Gi
+  each) — both ephemeral, scale-to-zero (`minRunners: 0`) on
+  `isolated-ci` nodes. Auth via a narrowly-scoped GitHub App. Real
+  memory requests on every container as of a load test that OOM'd a
+  worker under concurrent load — see the gotchas below.
 - **Isolation**: Kata Containers (`kata-deploy`), `kata-qemu` and
   `kata-fc` (Firecracker) RuntimeClasses available and benchmarked.
   **Both ARC runner-scale-sets run their pods under `kata-fc`** —
@@ -182,6 +186,39 @@ Known gotchas, both real and previously hit:
   correct fix needed a `kubectl rollout restart deployment
   coredns`/`hubble-ui` to actually take effect — re-applying the YAML
   alone wasn't enough, both times this came up.
+- **A real concurrent CI load test genuinely OOM'd a worker node** —
+  dispatched 20 workflow runs across all 4 workflows at once (both ARC
+  scale-sets scaling to their `maxRunners: 3` cap, 6 concurrent
+  `kata-fc` pods). Root cause: **every runner pod had zero memory
+  requests/limits**, so the scheduler had no way to know 3 concurrent
+  microVMs (each demanding real host RSS once a job actually runs, not
+  just their ~200MB idle footprint) wouldn't fit on a 2.8GB
+  `isolated-ci` worker — it kept stacking them until the node's kernel
+  itself started thrashing (`load average: 114.56` *inside* the
+  2-vCPU guest, `free -h` showing 83MB available out of 2.8GB, zero
+  swap configured at all). The node went genuinely unresponsive —
+  `NotReady`, SSH timing out, even the QEMU guest agent disappearing
+  on the worse-hit node — and needed a hard `virsh reset`, after which
+  containerd's devmapper thin-pool (ephemeral state, per the gotcha
+  above) needed manually recreating again before kubelet would start.
+  **Fixed at the root**: added real `resources.requests`/`limits` to
+  every runner container (`arc-runner-set`'s `runner`: 500m/1Gi;
+  `arc-runner-set-dind`'s `runner`: 500m/512Mi) plus a namespace-wide
+  `LimitRange` in `arc-runners` (500m/1Gi default) covering the dind
+  scale-set's auto-generated `dind`/`init-dind-externals` containers —
+  which **cannot** receive `resources` via the chart's own
+  `values.yaml` at all (confirmed: `gha-runner-scale-set` 0.14.2 only
+  field-merges overrides for the `runner` container; any
+  `dind`-named entry in `template.spec.containers`/`initContainers` is
+  appended as a raw duplicate instead of merging, failing
+  server-side-apply with `duplicate entries for key [name="dind"]` —
+  a real, currently-open upstream bug/PR,
+  `actions/actions-runner-controller#4567`). Re-ran the exact same
+  20-dispatch wave afterward: jobs correctly queued/drained (never
+  more than 2 running at once per node) instead of stacking, all 5
+  nodes stayed `Ready` throughout, host load stayed under 5 instead of
+  spiking past 11. See
+  [`cluster/arc-runners-limitrange.yaml`](cluster/arc-runners-limitrange.yaml).
 
 ## Rebuilding from scratch
 

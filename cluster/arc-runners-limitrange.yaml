@@ -1,0 +1,32 @@
+# Works around a real, confirmed upstream gha-runner-scale-set chart
+# bug: containerMode.type=dind's auto-generated `dind` sidecar
+# container has no supported way to receive resources.requests/limits
+# via values.yaml (chart 0.14.2 - see
+# exercises/06-github-actions-arc/runner-scale-set-values-dind.yaml for
+# the full explanation and the open upstream issue/PR reference).
+#
+# Root cause this also fixes: runner pods had zero memory
+# requests/limits at all, so the scheduler had no way to know 3
+# concurrent kata-fc microVMs (each with real host-side memory demand
+# once a job actually runs, not just idle overhead) wouldn't fit on a
+# 2.8GB isolated-ci worker - it stacked them until the node genuinely
+# ran out of memory and had to be hard-reset.
+#
+# A namespace-wide default request/limit means any container in
+# arc-runners without its own explicit resources (currently just the
+# chart's auto-generated `dind` and `init-dind-externals` containers)
+# gets one applied automatically - no per-chart-field-merge support
+# needed.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: arc-runners-default-resources
+  namespace: arc-runners
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: "500m"
+        memory: "1Gi"
+      default:
+        memory: "1Gi"
