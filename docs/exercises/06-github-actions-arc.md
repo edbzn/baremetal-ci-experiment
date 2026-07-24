@@ -208,3 +208,22 @@ container's own startup, which matters more here than in the original
 benchmark since ARC creates a fresh ephemeral pod per job by design —
 worth watching if job volume ever grows enough for that per-job tax to
 add up.
+
+**The `dind` scale-set specifically needed two more real fixes before
+it actually worked under `kata-fc`** — both are documented in full in
+[`04-kata-microvms.md`](04-kata-microvms.md#second-real-gap-emptydir-volumes-default-to-a-tiny-guest-tmpfs-not-disk),
+since they're generic `kata-fc` gaps, not ARC-specific ones:
+1. `EmptyDir` volumes (the `dind-externals` copy target) silently fell
+   back to a ~400MB RAM-backed guest tmpfs instead of real disk,
+   because Kata's default `emptydir_mode="shared-fs"` needs virtio-fs,
+   which Firecracker doesn't support. `init-dind-externals` failed with
+   `No space left on device`.
+2. Switching to `emptydir_mode="block-plain"` (a real virtio block
+   device instead of tmpfs) fixed the space problem but exposed a
+   permissions one — the fresh block device mounted root-only, and the
+   init container runs as the runner image's non-root `runner` user
+   (uid 1001), so `cp` failed with `Permission denied`. Fixed with
+   `securityContext.fsGroup: 1001` on the pod template.
+
+Only the `dind` scale-set hit this — the plain-mode scale-set has no
+large `EmptyDir` needs, so it worked under `kata-fc` on the first try.

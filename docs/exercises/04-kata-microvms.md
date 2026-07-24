@@ -285,3 +285,44 @@ underlying "measure before defaulting to more isolation" conclusion from
 the `kata-qemu` section still stands — this is an argument for *which*
 Kata hypervisor to pick once you've decided isolation is warranted, not
 an argument that isolation itself is now free.
+
+### Second real gap: `EmptyDir` volumes default to a tiny guest tmpfs, not disk
+
+Surfaced when Project 6's ARC runner pods were switched to
+`runtimeClassName: kata-fc` — a pod with a large `EmptyDir` need (ARC's
+`dind` containerMode copies several hundred MB of runner externals into
+one) failed with `No space left on device`, even though the underlying
+node had plenty of free disk.
+
+Root cause: Kata's `emptydir_mode` config defaults to `"shared-fs"`,
+which shares `EmptyDir` folders with the guest via virtio-fs — but
+Firecracker has no `shared_fs` support (the same minimal-device-model
+reason it has no virtio-fs at all). Kata doesn't error on this
+mismatch; it silently falls back to a small (~400MB), RAM-backed guest
+tmpfs instead, which is fine for small scratch space but breaks
+silently for anything larger.
+
+**Fix**: set `emptydir_mode = "block-plain"` in
+`configuration-fc.toml` on each `isolated-ci` worker
+([`configure-kata-fc-emptydir.sh`](configure-kata-fc-emptydir.sh)) —
+plugs a real virtio block device for `EmptyDir` instead of tmpfs, using
+the same devmapper mechanism already set up for `kata-fc`'s container
+rootfs. This traded the space problem for a second, smaller one: the
+fresh block-plain volume gets root-only permissions on mount, so a
+non-root init container (`cp` running as the runner image's `runner`
+user, uid 1001) got `Permission denied`. Fixed with a pod-level
+`securityContext.fsGroup: 1001` in the ARC values file, matching the
+runner image's actual UID — standard Kubernetes volume-ownership
+fix, no Kata-specific workaround needed once `block-plain` mode
+supplies a real block device to apply `fsGroup` to.
+
+Verified working end-to-end afterward: a real dispatched `dind`
+workflow run completed `success`, with the runner pod visibly
+`2/2 Running` (not immediately recycled, unlike every attempt before
+the fix) and the job's own log showing a real `docker build` +
+`docker run` succeeding inside it.
+
+Same caveat as the devmapper gap above: this is a real,
+generally-applicable incompatibility for anyone combining `kata-fc`
+with a workload that has non-trivial `EmptyDir` needs, not something
+specific to this cluster's config.
