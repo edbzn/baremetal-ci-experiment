@@ -56,6 +56,15 @@ host reboot.
   every real CI job gets microVM isolation, not just benchmark pods.
 - **TLS/webhooks**: cert-manager (a dependency of the ARC controller's
   own internal webhook, unrelated to GitHub webhooks).
+- **Cluster UI**: [Headlamp](https://headlamp.dev) (the actively
+  maintained sig-ui successor to the now-archived Kubernetes
+  Dashboard), exposed via a MetalLB LoadBalancer at
+  `http://192.168.122.202`, `cluster-admin`-scoped ServiceAccount
+  token login (`kubectl create token headlamp -n headlamp`). ArgoCD's
+  own UI is separately reachable at `https://192.168.122.201`
+  (`admin`/`kubectl -n argocd get secret
+  argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64
+  -d`).
 
 ## Operating the cluster
 
