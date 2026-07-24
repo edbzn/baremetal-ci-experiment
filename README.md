@@ -70,6 +70,81 @@ now runs under `kata-fc` microVM isolation rather than plain `runc` —
 see [What's installed](#whats-installed) below for the full detail
 behind each box.
 
+## Isolation approach for a CI system
+
+**The recommended approach: run untrusted CI jobs inside a microVM, with
+a normal container runtime running *inside* that microVM** — not plain
+containers alone, and not a microVM without a container runtime layer
+on top. This is exactly what this cluster already does (ARC runner
+pods → `kata-fc` → Firecracker → `containerd-shim-kata-v2` inside the
+guest), not a hypothetical.
+
+**Why not containers alone**: [Emir Bosnak's *Why MicroVMs Are Eating
+the Cloud in 2026*](https://emirb.github.io/blog/microvm-2026/) makes
+the core argument plainly — "containers are not a security boundary,
+they are a mechanism to control resource usage," citing 8 documented
+container-escape CVEs in 18 months. Namespaces/cgroups/seccomp share
+one host kernel; a single kernel bug breaks every tenant on that host
+at once. A CI system that runs arbitrary, untrusted `.github/workflows`
+YAML from anyone with push/PR access is exactly the threat model this
+matters for — confirmed concretely in this project's own [security
+drill](docs/exercises/06-github-actions-arc-security-drill.md), where a
+CI job's own container-level isolation held up under every probe, but
+the drill's whole premise (probing for host escape) only makes sense
+because container isolation is a "mostly holds" boundary, not a "can't
+be broken" one.
+
+**Why a container runtime on top of the microVM, not a bare VM**: the
+article calls this the "Matryoshka model" — each layer trusts only the
+layer below it (hardened host → KVM → minimal Rust VMM → guest kernel →
+container runtime → the untrusted job), and a breach at any one layer
+doesn't compromise the others. This is what actually gives a CI system
+back the developer ergonomics of "just run this container image" while
+keeping the hardware-enforced VM boundary as the actual security
+guarantee — which is exactly Kata Containers' own architecture, not a
+novel idea we're proposing on top of it.
+
+**Where our own measurements disagree with the article, and why that
+matters**: the article reports ~125ms Firecracker boot times and
+"single-digit percent" CPU overhead. Project 4's own measured `kata-fc`
+cold start (pod creation → `Ready`, 5-run average, on this exact
+cluster) is **~3.17s** — over 25x slower. This isn't a contradiction so
+much as a reminder to measure your own stack rather than trust a
+published number: the article's number is Firecracker's own boot time
+in isolation; ours is the *full* path through Kata's shim, containerd's
+CRI, CNI setup, and kubelet scheduling on top of that boot — the
+overhead the article is implicitly not counting. **The lesson for
+choosing a CI isolation approach**: don't adopt a technology on the
+strength of a benchmark number alone — reproduce it in your own stack,
+because the orchestration layers wrapped around the microVM usually
+cost more than the microVM itself.
+
+**The honest tradeoff, matching what we found**: the article's own
+conclusion — "the old 'VMs are too slow' argument stopped being
+persuasive years ago... the real cost is operational, not
+performance" — matches this project's experience exactly. The
+isolation itself works and (once `kata-fc`'s two real EmptyDir/devmapper
+gaps were fixed) is genuinely cheap on the dimensions that matter most
+for CI (disk I/O, memory, once the right hypervisor is chosen). The
+actual cost has been operational: a devmapper thin-pool that doesn't
+survive a reboot, an `emptydir_mode` default that silently picks the
+wrong storage backend for Firecracker, a chart that can't set resource
+limits on an auto-generated sidecar container, real OOM incidents under
+concurrent load. None of these are performance problems — they're the
+"someone has to actually run this" tax the article names directly.
+
+**Practical recommendation for picking a hypervisor under Kata,
+specific to CI**: the article's Firecracker-vs-Cloud-Hypervisor
+framing (minimalism vs. broader device/passthrough support) matches
+what Project 4 measured directly — `kata-fc` wins decisively on disk
+I/O and memory once its two setup gaps are fixed, `kata-qemu` is the
+safer default only when a workload genuinely needs something
+Firecracker's minimal device model can't provide (this project never
+hit that need). Reserve `kata-qemu`/Cloud-Hypervisor-class hypervisors
+for jobs with real device/passthrough requirements; default to
+Firecracker-class minimalism for everything else, matching the
+article's own recommendation.
+
 ## What's installed
 
 - **CNI**: Cilium (eBPF datapath, `kube-proxy` still in place alongside
