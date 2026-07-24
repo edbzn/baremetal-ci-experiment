@@ -1,4 +1,4 @@
-githubConfigUrl: "https://github.com/edbzn/baremetal-ci-experiment"
+githubConfigUrl: "https://github.com/edbzn/k8s-bare-metal-ci"
 githubConfigSecret: arc-github-app-secret
 
 minRunners: 0

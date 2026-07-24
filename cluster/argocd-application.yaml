@@ -11,7 +11,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/edbzn/baremetal-ci-experiment.git
+    repoURL: https://github.com/edbzn/k8s-bare-metal-ci.git
     targetRevision: main
     path: cluster/gitops-demo
   destination:

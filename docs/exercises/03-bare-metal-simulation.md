@@ -354,7 +354,7 @@ application state — this step introduces that second half concretely.
   a small dedicated `gitops-demo/` workload in this repo referencing the
   step-5 *cluster-internal* registry (`192.168.122.200:5000`) instead, and
   pointed an Argo CD `Application` at
-  `https://github.com/edbzn/baremetal-ci-experiment.git`,
+  `https://github.com/edbzn/k8s-bare-metal-ci.git`,
   path `cluster/gitops-demo`, with
   `syncPolicy.automated: {prune: true, selfHeal: true}`.
 

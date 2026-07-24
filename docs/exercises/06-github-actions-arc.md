@@ -40,7 +40,7 @@ for ARC and avoids a broadly-scoped personal token.
 ## Steps
 
 1. Create a GitHub App with the permissions ARC needs, install it on
-   `edbzn/baremetal-ci-experiment`, generate a private key.
+   `edbzn/k8s-bare-metal-ci`, generate a private key.
 2. Install `gha-runner-scale-set-controller` (cert-manager dependency +
    the controller itself) via Helm into the cluster.
 3. Install a `gha-runner-scale-set` Helm release configured with the
