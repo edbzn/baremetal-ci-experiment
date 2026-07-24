@@ -145,6 +145,46 @@ for jobs with real device/passthrough requirements; default to
 Firecracker-class minimalism for everything else, matching the
 article's own recommendation.
 
+### DIY (this project) vs. a managed offering — [SlicerVM](https://slicervm.com/)
+
+Worth naming a concrete alternative to everything above: SlicerVM
+(Alex Ellis / OpenFaaS Ltd) is a real, commercial, self-hosted
+microVM-management daemon built on the *same* underlying isolation
+boundary this cluster uses — Firecracker on Linux/KVM (falling back to
+QEMU for GPU/NIC passthrough, or Apple's Virtualization Framework on
+macOS) — exposed via a REST API/CLI/SDK instead of raw `jailer`
+configs and containerd shims. It explicitly targets CI/CD runners and
+AI-agent sandboxing as use cases.
+
+**Same core security guarantee, different layer.** The hardware
+isolation boundary is identical to `kata-fc` here — a Firecracker
+microVM either way. The difference is entirely in what wraps around
+it:
+
+| | This cluster (Kata + `kata-fc`) | SlicerVM |
+|---|---|---|
+| Isolation boundary | Firecracker microVM | Firecracker microVM (same) |
+| Orchestration | Kubernetes `RuntimeClass` — any pod opts in with one line | Standalone daemon + REST API/CLI/SDK |
+| Boot path | Kata shim → containerd CRI → CNI → kubelet (~3.17s measured) | ZFS-snapshot-based, sub-second claimed |
+| Platform | Linux/KVM only | Linux/KVM + macOS (Apple Virtualization Framework) |
+| Guest image | Minimal, container-optimized rootfs | Full systemd + package manager Linux VM |
+| Ecosystem | Full Kubernetes: RBAC, NetworkPolicy, ArgoCD, Headlamp, autoscaling all already apply | None of that — you'd integrate it around/instead of k8s yourself |
+| Cost | Free (Kata + Firecracker, both Apache 2.0) — the operational cost was ours to pay | ~$25–250/month + EULA |
+| Who found/fixed the rough edges | Us, this session (devmapper survival, `emptydir_mode`, the ARC chart's resource-override bug, a real OOM incident) | Vendor's problem |
+
+**The honest tradeoff**: SlicerVM is buying back exactly the
+"operational cost, not performance" tax the article calls out — someone
+else has already solved snapshot management, cross-platform tooling,
+and image builds, in exchange for money and a EULA. We paid that cost
+ourselves and came out with something fully understood and free, but
+Kubernetes-native and Linux-only. For a team that wants Firecracker
+isolation *without* wanting to become Kata/containerd experts,
+SlicerVM is a reasonable buy. For a Kubernetes-native CI system where
+the isolation should just be another `RuntimeClass` a pod spec opts
+into — which is the actual architecture this whole cluster is built
+around — what's already running here is the more integrated answer,
+not a worse one.
+
 ## What's installed
 
 - **CNI**: Cilium (eBPF datapath, `kube-proxy` still in place alongside
