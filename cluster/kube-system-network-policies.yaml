@@ -1,0 +1,321 @@
+# kube-system had zero NetworkPolicy coverage. Most of its workloads
+# (Cilium, kube-proxy, the control-plane static pods) run hostNetwork
+# and are entirely unaffected by NetworkPolicy either way — this only
+# covers the 5 actual pod-network workloads: coredns, hubble-relay,
+# hubble-ui, kata-deploy, metrics-server. Applied and DNS-tested one at
+# a time; CoreDNS especially, since getting it wrong breaks cluster DNS
+# cluster-wide.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: coredns-ingress
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: kube-dns
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 9153
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: coredns-egress
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: kube-dns
+  policyTypes:
+    - Egress
+  egress:
+    # CoreDNS forwards non-cluster queries (github.com, etc.) upstream
+    # per its own ConfigMap (`forward . /etc/resolv.conf`), which
+    # resolves to the libvirt host's own DNS server (192.168.122.1) —
+    # missed on the first pass of this policy, which broke *all*
+    # external-name resolution cluster-wide (confirmed via ARC's
+    # controller failing to reach api.github.com, and CoreDNS's own
+    # logs showing `read udp ...->192.168.122.1:53: i/o timeout`).
+    - to:
+        - ipBlock:
+            cidr: 192.168.122.1/32
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # kube-apiserver access is a separate CiliumNetworkPolicy below —
+    # see the note at the bottom of this file for why.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: coredns-apiserver-egress
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s-app: kube-dns
+  egress:
+    - toEntities:
+        - kube-apiserver
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: metrics-server-ingress
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: metrics-server
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 10250
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: metrics-server-egress
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: metrics-server
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # kube-apiserver AND kubelet-scrape access are both separate
+    # CiliumNetworkPolicies below — see the note at the bottom of this
+    # file for why a plain ipBlock: 0.0.0.0/0 doesn't work for either.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: metrics-server-apiserver-egress
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s-app: metrics-server
+  egress:
+    - toEntities:
+        - kube-apiserver
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: metrics-server-kubelet-egress
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s-app: metrics-server
+  egress:
+    - toEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "10250"
+              protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hubble-relay-ingress
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: hubble-relay
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 4245
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hubble-relay-egress
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: hubble-relay
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # hubble-relay reaches Cilium agents via the hubble-peer ClusterIP
+    # Service (port 443), whose backends are the hostNetwork Cilium
+    # agent pods on port 4244 — the same double gap (ClusterIP DNAT +
+    # hostNetwork destination) as kube-apiserver/kubelet-scrape above,
+    # fixed the same way below.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hubble-relay-agent-egress
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s-app: hubble-relay
+  egress:
+    - toEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "4244"
+              protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hubble-ui-ingress
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: hubble-ui
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8081
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hubble-ui-egress
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: hubble-ui
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 4245
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kata-deploy-egress
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      name: kata-deploy
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # kube-apiserver access is a separate CiliumNetworkPolicy below —
+    # see the note at the bottom of this file for why.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kata-deploy-apiserver-egress
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      name: kata-deploy
+  egress:
+    - toEntities:
+        - kube-apiserver
+---
+# Why CiliumNetworkPolicy instead of a plain NetworkPolicy port rule,
+# for two distinct destination types:
+#
+# 1. kube-apiserver (ClusterIP 10.96.0.1:443): Cilium's eBPF datapath
+#    DNATs the ClusterIP destination before standard NetworkPolicy
+#    port-matching is evaluated in some paths, so a plain
+#    `namespaceSelector: {} / port: 443` egress rule silently matches
+#    nothing — the same gap Project 6's security drill already found
+#    and fixed for arc-runners specifically (a multi-minute hang, not a
+#    clean error, the first time). Also worth noting: the in-cluster
+#    Service port for the API server is 443 (`kubectl get svc
+#    kubernetes`), not kube-apiserver's own listen port 6443 — an easy
+#    port-number mistake to make when writing these by hand.
+#
+# 2. Kubelet scraping (real node IPs, e.g. 192.168.122.140:10250):
+#    kubelets run hostNetwork, and Cilium's identity model classifies
+#    node-IP-destined traffic as in-cluster, matched via
+#    identities/entities rather than CIDR — so a plain
+#    `ipBlock: 0.0.0.0/0` egress rule silently excludes node IPs too,
+#    by design (confirmed against a Cilium maintainer's own comment on
+#    this exact metrics-server/kubelet-scrape scenario:
+#    github.com/cilium/cilium/issues/35212). Fix: `toEntities: [host,
+#    remote-node]` instead of an ipBlock.
+#
+# Both are the same underlying lesson: for a Cilium-CNI cluster, any
+# egress rule aimed at a ClusterIP or a real node IP needs a
+# CiliumNetworkPolicy with the matching `toEntities` value
+# (kube-apiserver / host / remote-node) — a plain NetworkPolicy's
+# namespaceSelector/ipBlock only reliably covers genuine pod-to-pod and
+# pod-to-external-world traffic.

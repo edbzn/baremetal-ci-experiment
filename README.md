@@ -40,8 +40,15 @@ host reboot.
 - **LoadBalancer**: MetalLB, L2 mode.
 - **Storage**: `rancher/local-path-provisioner` (dynamic `StorageClass`),
   plus a plain `registry:2` internal container registry
-  (`192.168.122.200:5000`, insecure/plain-HTTP, `emptyDir`-backed — its
-  data does **not** survive node loss, a known and documented gap).
+  (`192.168.122.200:5000`, insecure/plain-HTTP). **No longer
+  `emptyDir`** — backed by a 10Gi `local-path` PVC as of this session;
+  verified surviving a real pod deletion (previously lost its data at
+  least 3 separate times across this project's history).
+- **Metrics**: `metrics-server`, `--kubelet-insecure-tls` (stock
+  kubeadm's self-signed kubelet serving certs have no IP SANs — the
+  correct fix, `serverTLSBootstrap` + a CSR auto-approver, is real
+  surgery on an already-running cluster not worth it for this lab).
+  `kubectl top` and Headlamp's CPU/memory tiles both work now.
 - **GitOps**: ArgoCD, auto-syncing [`cluster/gitops-demo/`](cluster/gitops-demo/)
   from this repo's `main` branch (`automated: {prune: true, selfHeal:
   true}` — pushes here take effect on the cluster automatically).
@@ -56,6 +63,14 @@ host reboot.
   every real CI job gets microVM isolation, not just benchmark pods.
 - **TLS/webhooks**: cert-manager (a dependency of the ARC controller's
   own internal webhook, unrelated to GitHub webhooks).
+- **NetworkPolicy coverage**: `registry`, `headlamp`, and kube-system's
+  5 pod-network workloads (`coredns`, `metrics-server`, `hubble-relay`,
+  `hubble-ui`, `kata-deploy`) now have default-deny + explicit allow
+  policies — previously zero coverage anywhere outside `arc-runners`
+  and ArgoCD's own pods. Every `kube-apiserver`/ClusterIP/node-IP
+  egress rule needed a `CiliumNetworkPolicy` with `toEntities`
+  (`kube-apiserver`, `host`, `remote-node`) rather than a plain
+  `NetworkPolicy` port rule — see the gotchas below.
 - **Cluster UI**: [Headlamp](https://headlamp.dev) (the actively
   maintained sig-ui successor to the now-archived Kubernetes
   Dashboard), exposed via a MetalLB LoadBalancer at
@@ -130,6 +145,25 @@ Known gotchas, both real and previously hit:
   liveness/readiness probe at all. Fix: `kubectl delete pod` on the
   listener (its Deployment recreates it immediately). See
   [`docs/exercises/06-github-actions-arc.md`](docs/exercises/06-github-actions-arc.md).
+- **Any NetworkPolicy egress rule aimed at a ClusterIP or a real node
+  IP needs `CiliumNetworkPolicy` + `toEntities`, not a plain
+  `NetworkPolicy` port rule** — confirmed the hard way three times
+  while sweeping NetworkPolicy coverage across the cluster: (1)
+  `kube-apiserver` access (`10.96.0.1:443`) is DNAT'd before standard
+  port-matching runs, so a `namespaceSelector`/port rule silently
+  matches nothing; (2) kubelet-scrape traffic to real node IPs
+  (`metrics-server` → `:10250`) is classified by Cilium's identity
+  model as in-cluster and isn't matched by a plain `ipBlock:
+  0.0.0.0/0` either — needs `toEntities: [host, remote-node]`; (3)
+  **CoreDNS's own upstream-forwarder egress is easy to forget
+  entirely** — a `namespaceSelector: {}` DNS-egress rule only covers
+  in-cluster queries, breaking *all* external-name resolution
+  cluster-wide (`api.github.com`, etc.) the moment it's applied,
+  surfaced as `ARC` failing to reach `api.github.com` with `server
+  misbehaving`. A stale Cilium policy revision on the already-running
+  CoreDNS pods also meant the eventual correct fix needed a
+  `kubectl rollout restart deployment coredns` to actually take
+  effect — re-applying the YAML alone wasn't enough.
 
 ## Rebuilding from scratch
 

@@ -8,6 +8,19 @@ kind: Namespace
 metadata:
   name: registry
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-data
+  namespace: registry
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,6 +28,8 @@ metadata:
   namespace: registry
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: registry
@@ -33,7 +48,8 @@ spec:
               mountPath: /var/lib/registry
       volumes:
         - name: data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: registry-data
 ---
 apiVersion: v1
 kind: Service

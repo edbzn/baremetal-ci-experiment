@@ -1,0 +1,41 @@
+# Registry previously had zero NetworkPolicy — any pod in the cluster
+# could reach it freely (the exact gap Project 6's security drill found
+# for arc-runners specifically; this closes it from the registry side
+# too). Default-deny all traffic except the registry port itself, plus
+# DNS (needed for the registry container's own outbound resolution,
+# e.g. Docker Hub layer pulls if ever configured as a pull-through cache).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: registry-ingress
+  namespace: registry
+spec:
+  podSelector:
+    matchLabels:
+      app: registry
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 5000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: registry-egress
+  namespace: registry
+spec:
+  podSelector:
+    matchLabels:
+      app: registry
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

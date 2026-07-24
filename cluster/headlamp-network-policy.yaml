@@ -1,0 +1,50 @@
+# Same default-deny pattern as registry: Headlamp is cluster-admin over
+# the whole API server via its own ServiceAccount token, so restricting
+# who can even reach its UI port matters — no NetworkPolicy existed at
+# all before this.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: headlamp-ingress
+  namespace: headlamp
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 4466
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: headlamp-egress
+  namespace: headlamp
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # kube-apiserver access via CiliumNetworkPolicy below — plain
+    # NetworkPolicy port rules don't reliably match post-DNAT traffic
+    # to the apiserver ClusterIP under Cilium (see
+    # cluster/kube-system-network-policies.yaml for the full note).
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: headlamp-apiserver-egress
+  namespace: headlamp
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
