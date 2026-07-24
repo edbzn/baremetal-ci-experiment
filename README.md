@@ -36,9 +36,7 @@ host reboot.
 ## What's installed
 
 - **CNI**: Cilium (eBPF datapath, `kube-proxy` still in place alongside
-  it), Hubble + Hubble UI for flow observability — exposed via a
-  MetalLB LoadBalancer at `http://192.168.122.203` (previously
-  `ClusterIP`-only, not reachable outside the cluster).
+  it), Hubble + Hubble UI for flow observability.
 - **LoadBalancer**: MetalLB, L2 mode.
 - **Storage**: `rancher/local-path-provisioner` (dynamic `StorageClass`),
   plus a plain `registry:2` internal container registry
@@ -73,32 +71,43 @@ host reboot.
   egress rule needed a `CiliumNetworkPolicy` with `toEntities`
   (`kube-apiserver`, `host`, `remote-node`) rather than a plain
   `NetworkPolicy` port rule — see the gotchas below.
-- **Cluster UI**: [Headlamp](https://headlamp.dev) (the actively
-  maintained sig-ui successor to the now-archived Kubernetes
-  Dashboard), exposed via a MetalLB LoadBalancer at
-  `http://192.168.122.202`, `cluster-admin`-scoped ServiceAccount
-  token login (`kubectl create token headlamp -n headlamp`). ArgoCD's
-  own UI is separately reachable at `https://192.168.122.201`
-  (`admin`/`kubectl -n argocd get secret
-  argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64
-  -d`).
 
-  ![ArgoCD: gitops-demo Application, synced and healthy](docs/screenshots/argocd-gitops-demo.png)
-  *ArgoCD's own resource-tree view of the `gitops-demo` Application —
-  synced to the exact commit that scaled it to 3 replicas earlier.*
+## UIs
 
-  ![Headlamp: cluster overview with warning events](docs/screenshots/headlamp-overview.png)
-  *Headlamp's cluster overview, genuinely useful the moment it's up:
-  this capture's 42 warning events (liveness/readiness probe failures
-  on `argocd-server`, `hubble-relay`, `metallb-controller`, a registry
-  pod `BackOff`) all trace back to the VM restart earlier this session
-  (~45min-old restart counts at capture time) — confirmed stale, not
-  live, by checking `kubectl get pods -A` afterward and finding
-  everything `Running`. Exactly the "leftover churn from a prior
-  incident vs. new breakage" distinction flagged in
-  [`docs/exercises/05-disaster-exercises.md`](docs/exercises/05-disaster-exercises.md)
-  — worth re-checking directly rather than trusting an event list's
-  age at a glance.*
+Three web UIs, all reachable directly from this host via MetalLB
+LoadBalancer IPs — no port-forwarding needed.
+
+### ArgoCD
+
+- **URL**: `https://192.168.122.201`
+- **Login**: `admin` / `kubectl -n argocd get secret
+  argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`
+- GitOps state — shows the `gitops-demo` Application's live sync/health
+  status and resource tree.
+
+![ArgoCD: gitops-demo Application, synced and healthy](docs/screenshots/argocd-gitops-demo.png)
+
+### Headlamp
+
+- **URL**: `http://192.168.122.202`
+- **Login**: ServiceAccount token, `cluster-admin`-scoped —
+  `kubectl create token headlamp -n headlamp`
+- General Kubernetes dashboard (pods, deployments, logs, resource
+  usage, live editing) — the actively maintained sig-ui successor to
+  the now-archived Kubernetes Dashboard project.
+
+![Headlamp: cluster overview with warning events](docs/screenshots/headlamp-overview.png)
+
+### Hubble UI
+
+- **URL**: `http://192.168.122.203`
+- **Login**: none
+- Cilium's network-flow observability UI — pick a namespace from the
+  dropdown to see live, real packet flows between pods, Services, and
+  the outside world (`world`), with verdicts (forwarded/dropped) and
+  L7 info where available.
+
+![Hubble UI: live flows between ARC runner pods and the outside world](docs/screenshots/hubble-ui-flows.png)
 
 ## Operating the cluster
 
