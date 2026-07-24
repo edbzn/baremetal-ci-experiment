@@ -66,6 +66,23 @@ host reboot.
   argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64
   -d`).
 
+  ![ArgoCD: gitops-demo Application, synced and healthy](docs/screenshots/argocd-gitops-demo.png)
+  *ArgoCD's own resource-tree view of the `gitops-demo` Application —
+  synced to the exact commit that scaled it to 3 replicas earlier.*
+
+  ![Headlamp: cluster overview with warning events](docs/screenshots/headlamp-overview.png)
+  *Headlamp's cluster overview, genuinely useful the moment it's up:
+  this capture's 42 warning events (liveness/readiness probe failures
+  on `argocd-server`, `hubble-relay`, `metallb-controller`, a registry
+  pod `BackOff`) all trace back to the VM restart earlier this session
+  (~45min-old restart counts at capture time) — confirmed stale, not
+  live, by checking `kubectl get pods -A` afterward and finding
+  everything `Running`. Exactly the "leftover churn from a prior
+  incident vs. new breakage" distinction flagged in
+  [`docs/exercises/05-disaster-exercises.md`](docs/exercises/05-disaster-exercises.md)
+  — worth re-checking directly rather than trusting an event list's
+  age at a glance.*
+
 ## Operating the cluster
 
 ```bash
