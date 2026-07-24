@@ -253,6 +253,27 @@ spec:
       ports:
         - protocol: TCP
           port: 4245
+    # kube-apiserver access is a separate CiliumNetworkPolicy below —
+    # hubble-ui's backend lists Namespaces directly (to populate its
+    # own cluster/namespace picker in the UI), which needs this the
+    # same way coredns/metrics-server/kata-deploy already do. Missed on
+    # the first pass of this NetworkPolicy sweep — the visible symptom
+    # was an empty cluster selector in the Hubble UI, traced back to
+    # `failed to list *v1.Namespace: ... dial tcp 10.96.0.1:443: i/o
+    # timeout` in the backend container's own logs.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hubble-ui-apiserver-egress
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s-app: hubble-ui
+  egress:
+    - toEntities:
+        - kube-apiserver
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

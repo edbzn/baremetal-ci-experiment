@@ -149,8 +149,8 @@ Known gotchas, both real and previously hit:
   [`docs/exercises/06-github-actions-arc.md`](docs/exercises/06-github-actions-arc.md).
 - **Any NetworkPolicy egress rule aimed at a ClusterIP or a real node
   IP needs `CiliumNetworkPolicy` + `toEntities`, not a plain
-  `NetworkPolicy` port rule** — confirmed the hard way three times
-  while sweeping NetworkPolicy coverage across the cluster: (1)
+  `NetworkPolicy` port rule** — confirmed the hard way four separate
+  times while sweeping NetworkPolicy coverage across the cluster: (1)
   `kube-apiserver` access (`10.96.0.1:443`) is DNAT'd before standard
   port-matching runs, so a `namespaceSelector`/port rule silently
   matches nothing; (2) kubelet-scrape traffic to real node IPs
@@ -162,10 +162,17 @@ Known gotchas, both real and previously hit:
   in-cluster queries, breaking *all* external-name resolution
   cluster-wide (`api.github.com`, etc.) the moment it's applied,
   surfaced as `ARC` failing to reach `api.github.com` with `server
-  misbehaving`. A stale Cilium policy revision on the already-running
-  CoreDNS pods also meant the eventual correct fix needed a
-  `kubectl rollout restart deployment coredns` to actually take
-  effect — re-applying the YAML alone wasn't enough.
+  misbehaving`; (4) **`hubble-ui`'s backend needs `kube-apiserver`
+  egress too**, missed on the first sweep entirely — its backend lists
+  Namespaces directly to populate its own cluster/namespace picker, so
+  without this the UI loads fine but the picker stays empty, with the
+  actual cause (`failed to list *v1.Namespace: ... dial tcp
+  10.96.0.1:443: i/o timeout`) visible only in the backend container's
+  own logs, not surfaced anywhere in the UI itself. A stale Cilium
+  policy revision on the already-running pods also meant the eventual
+  correct fix needed a `kubectl rollout restart deployment
+  coredns`/`hubble-ui` to actually take effect — re-applying the YAML
+  alone wasn't enough, both times this came up.
 
 ## Rebuilding from scratch
 
