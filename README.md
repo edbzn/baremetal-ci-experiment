@@ -185,6 +185,38 @@ into — which is the actual architecture this whole cluster is built
 around — what's already running here is the more integrated answer,
 not a worse one.
 
+### A closer competitor: [Actuated](https://actuated.com/)
+
+Same company as SlicerVM (Alex Ellis / OpenFaaS Ltd), but a much more
+direct comparison to this project specifically — Actuated is a hosted
+control plane purpose-built for **CI runners**, not a general-purpose
+"boot any microVM" tool. You supply the hardware (bare-metal or
+nested-virt-capable cloud VMs); Actuated's SaaS control plane
+schedules single-tenant, immutable-filesystem Firecracker microVMs
+onto it per job, and integrates directly with GitHub Actions/GitLab
+CI/Jenkins as the job-dispatch layer.
+
+**Mapped onto this cluster's own two layers:**
+
+| Layer | This cluster | Actuated |
+|---|---|---|
+| Job dispatch / GitHub integration | ARC (`gha-runner-scale-set`) — GitHub App auth, listener long-polls GitHub, free/OSS | Actuated's own control plane — same job, proprietary + subscription |
+| Per-job isolation | `kata-fc` — Firecracker microVM via Kata's Kubernetes `RuntimeClass` | Firecracker microVM, same primitive, no Kubernetes involved |
+| Where it runs | Our own 5-node kubeadm cluster, fully Kubernetes-integrated | Hardware you provide; their control plane, not yours |
+| Cost | Free (Apache 2.0 all the way down) | No free tier; starts ~$250/month for 5 concurrent jobs |
+
+**The honest read**: Actuated is essentially "ARC + Kata-fc, as a
+hosted product" — closer to a direct competitor of *this whole
+project* than SlicerVM was, rather than just a competitor to the
+isolation layer underneath it. The isolation guarantee is the same
+Firecracker boundary either way; what you're actually paying for is
+someone else having already built and maintained the GitHub-integration
+plumbing, VM image lifecycle, and scaling logic we built ourselves in
+ARC + `kata-fc` — at the cost of losing the rest of the Kubernetes
+ecosystem (RBAC, NetworkPolicy, ArgoCD, Headlamp, `kubectl` itself)
+that comes free with doing it inside a real cluster instead of a
+CI-only control plane.
+
 ## What's installed
 
 - **CNI**: Cilium (eBPF datapath, `kube-proxy` still in place alongside
