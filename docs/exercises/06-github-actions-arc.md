@@ -227,3 +227,36 @@ since they're generic `kata-fc` gaps, not ARC-specific ones:
 
 Only the `dind` scale-set hit this — the plain-mode scale-set has no
 large `EmptyDir` needs, so it worked under `kata-fc` on the first try.
+
+### Real gap found: the listener pod can hang silently, `1/1 Ready` the whole time
+
+A dispatched job stayed `queued` on GitHub's side indefinitely with no
+runner pod ever created. Root cause: the listener's long-poll GET to
+`broker.actions.githubusercontent.com` hit `context deadline exceeded`
+(a real, transient network blip — not caused by anything in this
+repo), logged one "retrying request" line, and then never logged again
+— no crash, no restart, `kubectl get pods` showed `1/1 Running` the
+entire time. Fixed by `kubectl delete pod` on the listener (its
+Deployment recreates it immediately), which re-established a clean
+session and resumed picking up jobs.
+
+**The listener container has no `livenessProbe`/`readinessProbe` at
+all** — confirmed via `kubectl get pod ... -o yaml`, and the chart's
+own default `values.yaml` has no built-in one either (only a
+commented-out example for adding an arbitrary sidecar via
+`listenerTemplate`). This means Kubernetes has no way to detect this
+exact failure mode: the process is alive, the container is "ready" by
+Kubernetes' definition, but it has stopped making forward progress.
+
+**Recommendation, not yet applied**: the listener binary
+(`ghcr.io/actions/gha-runner-scale-set-controller`) exposes no HTTP
+health endpoint to point a standard probe at, so the practical option
+is an `exec` liveness probe checking for recent log activity — e.g. a
+periodic touch of a marker file inside the "Getting next message" loop
+combined with `find <marker> -mmin -2` as the probe command — configured
+via each release's `listenerTemplate.spec.containers[name=listener]`
+in `runner-scale-set-values*.yaml`. Not implemented here because the
+image is distroless (no shell, confirmed via `kubectl exec ... -- ps`
+failing with "executable file not found in $PATH"), so any exec probe
+needs a genuinely shell-free command — worth a real follow-up rather
+than a half-tested guess.

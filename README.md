@@ -88,6 +88,22 @@ Known gotchas, both real and previously hit:
   name exactly, or every runner registration 404s and the listener pod
   crash-loops indefinitely with no scheduling failure surfaced
   anywhere else.
+- **`kata-fc`'s `EmptyDir` volumes default to a tiny (~400MB) RAM-backed
+  guest tmpfs, not real disk** — Firecracker has no virtio-fs support,
+  so Kata's default `emptydir_mode="shared-fs"` silently falls back
+  instead of erroring. Any pod with real `EmptyDir` needs (e.g. ARC's
+  `dind` containerMode) fails with `No space left on device`. Fix:
+  `emptydir_mode="block-plain"` in `configuration-fc.toml` on each
+  worker, plus a pod-level `securityContext.fsGroup` matching the
+  container's UID (the fresh block device mounts root-only otherwise).
+  See [`docs/exercises/04-kata-microvms.md`](docs/exercises/04-kata-microvms.md).
+- **ARC's listener pod can hang silently on a transient network
+  blip** — no crash, no restart, `1/1 Ready` throughout, but it stops
+  polling GitHub for jobs entirely, so every dispatched job sits
+  `queued` forever. The container ships with no
+  liveness/readiness probe at all. Fix: `kubectl delete pod` on the
+  listener (its Deployment recreates it immediately). See
+  [`docs/exercises/06-github-actions-arc.md`](docs/exercises/06-github-actions-arc.md).
 
 ## Rebuilding from scratch
 
