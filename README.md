@@ -36,7 +36,9 @@ host reboot.
 ## What's installed
 
 - **CNI**: Cilium (eBPF datapath, `kube-proxy` still in place alongside
-  it), Hubble + Hubble UI for flow observability.
+  it), Hubble + Hubble UI for flow observability — exposed via a
+  MetalLB LoadBalancer at `http://192.168.122.203` (previously
+  `ClusterIP`-only, not reachable outside the cluster).
 - **LoadBalancer**: MetalLB, L2 mode.
 - **Storage**: `rancher/local-path-provisioner` (dynamic `StorageClass`),
   plus a plain `registry:2` internal container registry
