@@ -44,9 +44,10 @@ flowchart TB
     CP["Control plane<br/>3-node etcd quorum"]
     W["isolated-ci workers<br/>every job runs in a kata-fc microVM"]
 
-    UIS["MetalLB UIs<br/>registry · ArgoCD · Headlamp · Hubble UI"]
+    UIS["MetalLB UIs<br/>registry · ArgoCD · Headlamp · Hubble UI · Grafana"]
     ARC["ARC runner-sets<br/>(plain + dind)"]
     GITOPS["gitops-demo<br/>(ArgoCD auto-sync)"]
+    MON["Prometheus + Loki<br/>(metrics + logs, on control-plane nodes)"]
 
     DEV --> LB
     DEV --> UIS
@@ -55,20 +56,25 @@ flowchart TB
     LB --> CP
     CP --> W
     CP --> UIS
+    CP --> MON
 
     W --> ARC
+    W -->|node-exporter + Alloy DaemonSets<br/>metrics + pod logs| MON
     GH <--> ARC
 
     UIS --> GITOPS
+    MON --> UIS
 ```
 
 Every arrow above is a real, currently-live path: pushes to this
 repo's `main` branch reach ArgoCD via its own poll of GitHub, GitHub
 Actions jobs reach ARC's listener via an outbound long-poll (no
-inbound ingress exists on this cluster at all), and every CI job pod
-now runs under `kata-fc` microVM isolation rather than plain `runc` —
-see [What's installed](#whats-installed) below for the full detail
-behind each box.
+inbound ingress exists on this cluster at all), every CI job pod now
+runs under `kata-fc` microVM isolation rather than plain `runc`, and
+every node — including the `isolated-ci` workers — ships metrics and
+pod logs to Prometheus/Loki via DaemonSets, visible in Grafana — see
+[What's installed](#whats-installed) below for the full detail behind
+each box.
 
 ## Isolation approach for a CI system
 
