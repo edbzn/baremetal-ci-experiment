@@ -22,7 +22,23 @@ spec:
       labels:
         app: gitops-demo
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: app
           image: 192.168.122.200:5000/alpine-test:v1
           command: ["sh", "-c", "while true; do echo alive; sleep 30; done"]
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "32Mi"
+            limits:
+              memory: "64Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
