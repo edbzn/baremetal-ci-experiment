@@ -441,6 +441,25 @@ Known gotchas, both real and previously hit:
   nodes stayed `Ready` throughout, host load stayed under 5 instead of
   spiking past 11. See
   [`cluster/arc-runners-limitrange.yaml`](cluster/arc-runners-limitrange.yaml).
+- **A CI runner pod got stuck permanently `ContainerCreating` with
+  `failed to create shim task: Creating watcher returned error too
+  many open files`** — not a real file-descriptor exhaustion (checked:
+  only ~2800 FDs open cluster-wide, nowhere near any limit); the actual
+  cause is the kernel's separate `fs.inotify.max_user_instances` limit
+  (Ubuntu's stock default: 128), confirmed directly to be genuinely
+  exhausted (143 inotify instances in use on `ci-worker1`, 56 of them
+  from `containerd-shim` processes alone — one per running
+  container/sandbox is normal containerd behavior). This is a real,
+  generally-applicable node-tuning gap for any busy Kubernetes node,
+  not specific to anything this project built — the stock Ubuntu
+  default is simply too low once a node runs enough pods/containers
+  (this cluster's own monitoring-stack install, landing extra pods on
+  the same nodes, was almost certainly what tipped it over). Fixed by
+  raising both `fs.inotify.max_user_instances` (128 → 1024) and
+  `fs.inotify.max_user_watches` on both `isolated-ci` workers via
+  `/etc/sysctl.d/99-inotify.conf` (persists across reboots) — the
+  stuck pod recovered immediately once applied, no pod/workload
+  changes needed.
 
 ## Rebuilding from scratch
 

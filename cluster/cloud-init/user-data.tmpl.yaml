@@ -25,4 +25,13 @@ runcmd:
   - echo "net.ipv4.ip_forward = 1" > /etc/sysctl.d/99-kubernetes-forwarding.conf
   - echo "net.bridge.bridge-nf-call-iptables = 1" >> /etc/sysctl.d/99-kubernetes-forwarding.conf
   - echo "net.bridge.bridge-nf-call-ip6tables = 1" >> /etc/sysctl.d/99-kubernetes-forwarding.conf
+  # Ubuntu's stock fs.inotify.max_user_instances (128) is too low for a
+  # busy node - one containerd-shim per running container/sandbox each
+  # holds an instance, and a node with enough pods genuinely exhausts
+  # it (confirmed directly: hit this for real on ci-worker1 with 143
+  # instances in use vs the 128 cap, causing new pods to fail with
+  # "Creating watcher returned error too many open files" - not an
+  # actual FD exhaustion, a separate, much lower kernel limit).
+  - echo "fs.inotify.max_user_instances = 1024" > /etc/sysctl.d/99-inotify.conf
+  - echo "fs.inotify.max_user_watches = 524288" >> /etc/sysctl.d/99-inotify.conf
   - sysctl --system
