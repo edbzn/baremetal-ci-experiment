@@ -1,0 +1,135 @@
+# prometheus-community/kube-prometheus-stack — bundles Prometheus,
+# Grafana, Alertmanager, kube-state-metrics, and a node-exporter
+# DaemonSet all in one chart. This is the metrics + dashboards +
+# alerting half of the OSS monitoring stack (see
+# docs/monitoring-alerts.md for the full picture, including Loki for
+# logs).
+#
+# Sized for this lab's actual capacity (5 nodes, isolated-ci workers
+# at 2vCPU/2.8GB each) - short retention, modest resource requests, not
+# tuned for high cardinality or long-term storage.
+#
+# Cluster-infra workloads, not CI jobs - every component below (except
+# node-exporter, which must run on every node to be useful) is
+# deliberately steered onto the control-plane nodes (4GB RAM each, real
+# headroom) rather than the isolated-ci workers (2.8GB each, already
+# the site of a real OOM incident under CI load - see the README
+# gotchas) via a toleration + nodeSelector for the control-plane taint.
+
+grafana:
+  enabled: true
+  service:
+    type: LoadBalancer
+  adminPassword: "changeme-see-docs-monitoring-alerts"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      memory: "256Mi"
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+
+prometheus:
+  prometheusSpec:
+    retention: 7d
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "512Mi"
+      limits:
+        memory: "1Gi"
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+    nodeSelector:
+      node-role.kubernetes.io/control-plane: ""
+
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        memory: "128Mi"
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 1Gi
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+    nodeSelector:
+      node-role.kubernetes.io/control-plane: ""
+
+# Real, confirmed kubeadm gotcha (not guessed): kube-scheduler and
+# kube-controller-manager on this cluster are both bound to
+# --bind-address=127.0.0.1 in their static pod manifests
+# (/etc/kubernetes/manifests/), so the chart's default ServiceMonitors
+# for them can never successfully scrape - they'd just show as
+# permanently down targets. Disabled here rather than silently left
+# broken. Re-enable only after editing those static pod manifests on
+# all 3 control-plane nodes to bind 0.0.0.0 (a real, deliberate change
+# to make separately - not done as part of this staging).
+kubeScheduler:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+# Confirmed broken the same way as kubeScheduler/kubeControllerManager
+# above: all 3 kube-etcd targets show up=0 in Prometheus after install
+# (verified directly via `up{job="kube-etcd"}`) - etcd's metrics
+# listener (:2381) is reachable but the scrape itself fails, most
+# likely a client-cert mismatch between what this chart's
+# ServiceMonitor expects and what kubeadm's etcd static pod actually
+# presents. Disabled rather than left silently broken; a real fix
+# needs comparing the ServiceMonitor's tlsConfig against
+# /etc/kubernetes/pki/etcd/ on each control-plane node - not done as
+# part of this staging.
+kubeEtcd:
+  enabled: false
+
+# kube-state-metrics and node-exporter are bundled subcharts, both
+# enabled by default - no separate install needed (a standalone
+# kube-state-metrics release would conflict with this one via
+# duplicate ServiceMonitors/label collisions).
+kubeStateMetrics:
+  enabled: true
+kube-state-metrics:
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+nodeExporter:
+  enabled: true
+
+# The operator pod itself also needs steering - separate from the
+# Prometheus/Alertmanager custom resources it manages, and easy to
+# miss (it landed on ci-worker2 the first time this was applied).
+prometheusOperator:
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""

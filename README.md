@@ -259,12 +259,23 @@ CI-only control plane.
   egress rule needed a `CiliumNetworkPolicy` with `toEntities`
   (`kube-apiserver`, `host`, `remote-node`) rather than a plain
   `NetworkPolicy` port rule — see the gotchas below.
-- **Monitoring/alerting** (staged, not yet applied — needs a real New
-  Relic license key first): two `open-telemetry/opentelemetry-collector`
-  Helm releases + `kube-state-metrics`, exporting node/pod metrics and
-  logs to New Relic via OTLP. See
-  [`docs/monitoring-alerts.md`](docs/monitoring-alerts.md) for the full
-  setup and the specific NRQL alert conditions targeting this project's
+- **Monitoring/alerting/logging**: fully self-hosted OSS —
+  `kube-prometheus-stack` (Prometheus + Grafana + Alertmanager +
+  `kube-state-metrics` + `node-exporter`) for metrics/dashboards/alerts,
+  plus `loki` + `grafana/alloy` for log aggregation (the ephemeral-
+  ARC-runner-pod-logs-vanish gap flagged earlier). All cluster-infra
+  components steered onto the control-plane nodes (4GB RAM each) via
+  taints/tolerations rather than the already-tight `isolated-ci`
+  workers (2.8GB each, the site of the earlier real OOM incident) —
+  only `node-exporter` and `alloy` run as DaemonSets across every node,
+  since both genuinely need to. `kubeScheduler`/`kubeControllerManager`/
+  `kubeEtcd` ServiceMonitors are deliberately disabled — all three
+  confirmed unreachable on this kubeadm cluster (scheduler/
+  controller-manager bind `127.0.0.1` by default; etcd's own scrape
+  target came up `up=0` after a real install, cause not yet
+  root-caused). See
+  [`docs/monitoring-alerts.md`](docs/monitoring-alerts.md) for the
+  setup detail and specific alert conditions targeting this project's
   own real incidents (worker OOM, ARC/ArgoCD control-plane pods going
   down, node `NotReady`).
 
@@ -304,6 +315,22 @@ LoadBalancer IPs — no port-forwarding needed.
   L7 info where available.
 
 ![Hubble UI: live flows between ARC runner pods and the outside world](docs/screenshots/hubble-ui-flows.png)
+
+### Grafana
+
+- **URL**: `http://192.168.122.204`
+- **Login**: `admin` / `kubectl get secret -n monitoring
+  kube-prometheus-stack-grafana -o jsonpath='{.data.admin-password}' |
+  base64 -d` (currently the placeholder value set in
+  `cluster/kube-prometheus-stack-values.yaml` — change this before any
+  real use).
+- Metrics dashboards (Prometheus, auto-configured data source) and log
+  exploration (Loki, add as a data source at
+  `http://loki.monitoring.svc.cluster.local:3100`) — the OSS
+  monitoring/alerting/logging stack described above.
+
+*(Screenshot pending — this UI was just stood up and not yet
+captured.)*
 
 ## Operating the cluster
 

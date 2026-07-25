@@ -1,0 +1,82 @@
+# grafana/loki, monolithic (SingleBinary) mode - appropriate for this
+# lab's scale; distributed/microservices mode is for high-volume/HA
+# setups this cluster doesn't need. Filesystem storage on a local-path
+# PVC, not S3/object storage - only worth adding if Loki needs to be
+# HA or keep logs longer than this lab cares about.
+#
+# The chart's own default deploymentMode is SimpleScalable, NOT
+# SingleBinary - setting only `singleBinary.*` values without this key
+# silently renders zero server workload at all (confirmed directly:
+# the chart rendered read/write/backend components at their default 0
+# replicas and no StatefulSet/Service for the actual Loki server).
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  schemaConfig:
+    configs:
+      - from: "2024-04-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+  storage_config:
+    filesystem:
+      directory: /var/loki/chunks
+
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: true
+    storageClass: local-path
+    size: 10Gi
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      memory: "512Mi"
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+
+# Disable the distributed-mode components this chart can also deploy -
+# not needed for singleBinary mode, and would just be dead weight.
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+
+gateway:
+  enabled: false
+
+test:
+  enabled: false
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+  selfMonitoring:
+    enabled: false
+
+# Canary + Memcached-based result/chunk caching are all on by default
+# but real memory cost this lab's node capacity can't spare (already
+# the site of a real OOM incident under CI load) - not worth it at
+# this log volume. Disabled rather than fought for placement.
+lokiCanary:
+  enabled: false
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
