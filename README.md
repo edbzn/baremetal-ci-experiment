@@ -329,8 +329,11 @@ LoadBalancer IPs — no port-forwarding needed.
   `http://loki.monitoring.svc.cluster.local:3100`) — the OSS
   monitoring/alerting/logging stack described above.
 
-*(Screenshot pending — this UI was just stood up and not yet
-captured.)*
+![Grafana: Kubernetes / Compute Resources / Node (Pods) dashboard for ci-cp1](docs/screenshots/grafana-node-dashboard.png)
+*One of `kube-prometheus-stack`'s built-in dashboards, showing real
+live CPU/memory data and a per-pod breakdown for `ci-cp1` — confirms
+the whole Prometheus scrape path is genuinely working, not just
+Grafana serving a login page.*
 
 ## Operating the cluster
 
