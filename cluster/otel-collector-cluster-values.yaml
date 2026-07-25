@@ -1,0 +1,45 @@
+# Single deployment (not a daemonset - this is cluster-wide, not
+# per-node data). Scrapes kube-state-metrics for object-level metrics
+# (deployment/replica health, pod resource requests vs. limits,
+# scheduling state) that the daemonset's kubelet-only view can't see -
+# e.g. "ARC's controller Deployment has 0/1 available replicas" is a
+# kube-state-metrics metric, not a kubelet one.
+mode: deployment
+
+replicaCount: 1
+
+extraEnvs:
+  - name: NEW_RELIC_LICENSE_KEY
+    valueFrom:
+      secretKeyRef:
+        name: newrelic-license
+        key: license-key
+  - name: NEW_RELIC_OTLP_ENDPOINT
+    value: "https://otlp.nr-data.net"
+
+config:
+  receivers:
+    prometheus:
+      config:
+        scrape_configs:
+          - job_name: kube-state-metrics
+            scrape_interval: 30s
+            static_configs:
+              - targets: ["kube-state-metrics.kube-system.svc.cluster.local:8080"]
+  exporters:
+    otlphttp/newrelic:
+      endpoint: ${env:NEW_RELIC_OTLP_ENDPOINT}
+      headers:
+        api-key: ${env:NEW_RELIC_LICENSE_KEY}
+  service:
+    pipelines:
+      metrics:
+        receivers: [prometheus]
+        exporters: [otlphttp/newrelic]
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "200Mi"
+  limits:
+    memory: "400Mi"

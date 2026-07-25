@@ -1,0 +1,61 @@
+# Runs on every node. Two jobs:
+#   1. kubeletMetrics preset: scrapes each node's own kubelet/cAdvisor
+#      stats endpoint (:10250) for node/pod/container CPU, memory, disk,
+#      network - this is the "is a node/pod under real load" signal the
+#      OOM incident (see README gotchas) would have caught immediately
+#      with an alert, instead of discovering it live via a hung VM.
+#   2. logsCollection preset: filelog receiver watching /var/log/pods -
+#      the log-aggregation gap flagged in the production-readiness
+#      discussion (ARC's ephemeral runner pods delete their logs the
+#      moment the pod is gone; this is the only way to keep them).
+#
+# Needs NEW_RELIC_LICENSE_KEY and NEW_RELIC_OTLP_ENDPOINT set as real
+# values (or via a Secret - see below) before this chart is actually
+# installed. Not yet applied - staged only.
+mode: daemonset
+
+presets:
+  kubeletMetrics:
+    enabled: true
+  logsCollection:
+    enabled: true
+    includeCollectorLogs: false
+
+# The filelog receiver needs to read root-owned files under
+# /var/log/pods - a documented, common gotcha on self-managed clusters
+# (the default chart securityContext can't read them otherwise).
+securityContext:
+  runAsUser: 0
+  runAsGroup: 0
+
+extraEnvs:
+  - name: NEW_RELIC_LICENSE_KEY
+    valueFrom:
+      secretKeyRef:
+        name: newrelic-license
+        key: license-key
+  # Set to https://otlp.nr-data.net for US-region accounts (default
+  # below) or https://otlp.eu01.nr-data.net for EU-region accounts -
+  # confirm which region the New Relic account is in before deploying.
+  - name: NEW_RELIC_OTLP_ENDPOINT
+    value: "https://otlp.nr-data.net"
+
+config:
+  exporters:
+    otlphttp/newrelic:
+      endpoint: ${env:NEW_RELIC_OTLP_ENDPOINT}
+      headers:
+        api-key: ${env:NEW_RELIC_LICENSE_KEY}
+  service:
+    pipelines:
+      metrics:
+        exporters: [otlphttp/newrelic]
+      logs:
+        exporters: [otlphttp/newrelic]
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "200Mi"
+  limits:
+    memory: "400Mi"

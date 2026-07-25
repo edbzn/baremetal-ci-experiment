@@ -4,3 +4,4 @@ exercises/02-kubernetes-ci/queue/.processed/
 cluster/.kube/
 cluster/vm-images/
 cluster/etcd-backups/
+cluster/newrelic-license-secret.yaml

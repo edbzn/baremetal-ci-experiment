@@ -259,6 +259,14 @@ CI-only control plane.
   egress rule needed a `CiliumNetworkPolicy` with `toEntities`
   (`kube-apiserver`, `host`, `remote-node`) rather than a plain
   `NetworkPolicy` port rule — see the gotchas below.
+- **Monitoring/alerting** (staged, not yet applied — needs a real New
+  Relic license key first): two `open-telemetry/opentelemetry-collector`
+  Helm releases + `kube-state-metrics`, exporting node/pod metrics and
+  logs to New Relic via OTLP. See
+  [`docs/monitoring-alerts.md`](docs/monitoring-alerts.md) for the full
+  setup and the specific NRQL alert conditions targeting this project's
+  own real incidents (worker OOM, ARC/ArgoCD control-plane pods going
+  down, node `NotReady`).
 
 ## UIs
 
