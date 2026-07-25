@@ -1,0 +1,22 @@
+# gitops-demo is the one namespace ArgoCD auto-syncs with selfHeal —
+# easiest place in the cluster to accidentally extend without noticing
+# there's no NetworkPolicy at all. Default-deny + DNS-only, matching the
+# pattern already used for registry/headlamp/kube-system: this workload
+# has no legitimate need to reach anything else on the cluster.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gitops-demo-egress
+  namespace: gitops-demo
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

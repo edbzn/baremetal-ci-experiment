@@ -38,11 +38,40 @@ spec:
       labels:
         app: registry
     spec:
+      securityContext:
+        # registry:2's entrypoint runs as root and chowns/writes
+        # /var/lib/registry itself — runAsNonRoot would break the image
+        # outright. fsGroup instead grants the PVC's mounted volume
+        # group-writable access without needing runAsUser overrides.
+        fsGroup: 1000
       containers:
         - name: registry
           image: registry:2
           ports:
             - containerPort: 5000
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          readinessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 20
           volumeMounts:
             - name: data
               mountPath: /var/lib/registry

@@ -1,0 +1,74 @@
+# arc-runners had no NetworkPolicy at all — confirmed by the security
+# drill (exercises/06-github-actions-arc/security-drill/) that a CI
+# runner pod could reach any internal cluster service, including the
+# registry, with no legitimate reason to. Promoted from that drill's
+# arc-runner-egress-policy.yaml into the live GitOps-applied set, since
+# every real job runs here, not just the drill's throwaway namespace.
+#
+# Default-deny egress, then explicitly allow:
+#   - DNS (needed for everything, including resolving external hosts)
+#   - kube-apiserver, via CiliumNetworkPolicy toEntities (a plain
+#     NetworkPolicy ipBlock rule for the API server's ClusterIP does
+#     NOT work under Cilium — DNAT happens before policy enforcement
+#     sees the real destination, so the rule silently never matches;
+#     confirmed by the drill as ~2.5 minute hangs instead of clean
+#     rejections). Same class of gap as documented in
+#     cluster/kube-system-network-policies.yaml.
+#   - "The real internet" via an ipBlock that excludes RFC1918 private
+#     ranges and the cluster's own pod/service CIDRs — actions/checkout,
+#     dependency downloads, and the GitHub API all need real outbound
+#     internet access, while every internal destination (registry,
+#     API server, ArgoCD, anything else on this cluster) stays blocked.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+  namespace: arc-runners
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: arc-runners
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-external-internet-egress
+  namespace: arc-runners
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8       # covers the pod CIDR (10.244.0.0/16) and any other 10.x internal use
+              - 172.16.0.0/12
+              - 192.168.0.0/16   # covers the libvirt host network (192.168.122.0/24) -- registry, API server LB, etc.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kubernetes-api-egress
+  namespace: arc-runners
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
